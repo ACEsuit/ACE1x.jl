@@ -1,5 +1,5 @@
 module ACE1x
 
-# Write your package code here.
+include("pure2b/Pure2b.jl")
 
 end
