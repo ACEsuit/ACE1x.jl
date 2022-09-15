@@ -130,10 +130,37 @@ function correct_coupling_coeffs!(rpibasis)
    return I2b 
 end
 
+function remove_2b!(rpibasis, I2b, delete2b, maxdeg)
+   # decide whether to delete all 2b, or just the ones with 
+   # too high a degree (note they will remain in the AA basis 
+   # and only get deleted from the B basis)
+   CC = rpibasis.A2Bmaps[1]
+
+   if delete2b 
+      Idel = I2b 
+   else 
+      degrees = zeros(Int, length(I2b))
+      for i = 1:length(I2b)
+         idx = I2b[i]
+         iAA = findfirst(CC[idx, :] .!= 0)
+         n = get_basis_spec(rpibasis.pibasis, 1, iAA).oneps[1].n
+         degrees[i] = n 
+      end
+      Idel = I2b[ degrees .<= maxdeg ]
+   end
+
+   CC[Idel] .= 0.0 
+   return nothing 
+end
+
+
 function pure2b_basis(; species = nothing, Rn = nothing,
                         D = nothing, maxdeg = nothing, order = nothing, 
                         constants = false, 
                         delete2b = false)
+
+   @assert D.chc == 0 
+   @assert D.csp == 1 
 
    # construct the extended PI Basis    
    pibasis_x = extended_rpibasis(species, Rn, D, maxdeg, order, 
@@ -144,6 +171,11 @@ function pure2b_basis(; species = nothing, Rn = nothing,
    
    # correct the coupling coefficient matrix / A2B map 
    I2b = correct_coupling_coeffs!(rpibasis)
+
+   # remove the 2b 
+   #      if delete2b == true then all will be removed. 
+   #      if delete2b == false then only the ones with too high degree.
+   remove_2b!(rpibasis, I2b, delete2b, maxdeg)
 
    return rpibasis
 end
