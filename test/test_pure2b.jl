@@ -58,36 +58,10 @@ basis_x = ACE1.PIBasis(B1p_x, ord, D, maxdeg)
 length(basis.basis1p.spec)
 length(basis_x.basis1p.spec)
 
-##
-
-maxn_x = maximum(b.n for b in B1p_x.spec)
-
-spec = ACE1.get_basis_spec(basis, 1)
-
-maxn = maximum( maximum(b.n for b in bb.oneps) for bb in spec )
-
-const NLMZ = ACE1.RPI.PSH1pBasisFcn
-
-new_spec = [ ACE1.PIBasisFcn(AtomicNumber(:X), 
-                             (NLMZ(n, 0, 0, AtomicNumber(:X)), ) )
-               for n = maxn+1:maxn_x ] 
-orders = [ length(bb.oneps) for bb in spec ]
-N1 = maximum(findall(orders.==1))
-@assert all(isequal(1), orders[1:N1])
-spec_x = [ spec[1:N1]; new_spec; spec[N1+1:end] ]
-
-basis_x = ACE1.pibasis_from_specs(B1p_x, [spec_x,] )
-length(basis_x)
-
-ACE1.get_basis_spec(basis_x, 1) == spec_x
-
 ## 
 
-pibasis_x = ACE1x.Pure2b.pure2b_basis(species = [AtomicNumber(:X),], 
-                                      Rn=Pr, 
-                                      D=D, 
-                                      maxdeg=maxdeg, 
-                                      order=4)
-
-rpibasis = ACE1.RPI.RPIBasis(pibasis_x)
-
+rpibasis_x = ACE1x.Pure2b.pure2b_basis(species = [AtomicNumber(:X),], 
+                                       Rn=Pr, 
+                                       D=D, 
+                                       maxdeg=maxdeg, 
+                                       order=4)
