@@ -5,7 +5,7 @@ using ACE1
 
 using ACE1: SparsePSHDegree, BasicPSH1pBasis, PIBasis, get_basis_spec, 
             PIBasisFcn, pibasis_from_specs, degree, 
-            rand_radial, order, evaluate
+            rand_radial, order, evaluate, i2z, z2i
 using ACE1.RPI: RPIBasis, RPIFilter   
 
 using LinearAlgebra: qr, norm
@@ -66,36 +66,48 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
    # compute a first PIBasis                         
    B1p = BasicPSH1pBasis(Rn; species = species, D = D)
    pibasis = PIBasis(B1p, order, D, maxdeg; filter = RPIFilter(constants))
-   # compute the largest n occuring in the standard PI basis
-   spec = get_basis_spec(pibasis, 1)
-   maxn = maximum( maximum(b.n for b in bb.oneps) for bb in spec )
-   # check that the maxn in Rn is ok 
-   maxn_x = maxn + (Rn.J.pl + Rn.J.pr) * (order - 1)
-   if !(length(Rn) >= maxn_x)
-      @info("""Rn is too short: length(Rn) = $(length(Rn)), 
-               need at least maxn_x = $(maxn_x).""")
-      error("length(Rn) < maxn + (pl + pr) * (order - 1)")
-   end
+   _i2z(i::Integer) = i2z(pibasis, i)
 
-   # get the basis spec and extend it as required for the pure symmetrisation 
-   spec = get_basis_spec(pibasis, 1) 
-   orders = [ length(bb.oneps) for bb in spec ]
-   N1 = maximum(findall(orders .== 1))
-   @assert all(isequal(1), orders[1:N1])
-   new_spec = [ PIBasisFcn(z0, (NLMZ(n, 0, 0, AtomicNumber(:X)), ) )
-                for z0 in species for n = maxn+1:maxn_x ]
-   spec_x = [ spec[1:N1]; new_spec; spec[N1+1:end] ]
+   spec_x = Dict{Any, Any}([z => nothing for z in species]...)
+   maxn_x_total = Dict{Any, Int}([z => 0 for z in species]...)
 
-   # TODO: fix this part of the code for multiple species 
-   #       and hence multiple possibly different specs 
+   for iz0 = 1:length(pibasis.inner)
+      z0 = _i2z(iz0)
+      # compute the largest n occuring in the standard PI basis
+      spec = get_basis_spec(pibasis, iz0)
+      maxn = Dict([z => 0 for z in species]...)
+      for bb in spec, b in bb.oneps 
+         maxn[b.z] = max(maxn[b.z], b.n)
+      end
+      # check that the maxn in Rn is ok 
+      ninc = (Rn.J.pl + Rn.J.pr) * (order - 1)
+      maxn_x = Dict([z => maxn[z] + ninc for z in species]...)
+      max_maxn_x = maximum( maxn_x[z] for z in species )
+      if !(length(Rn) >= max_maxn_x)
+         @info("""Rn is too short: length(Rn) = $(length(Rn)), 
+                  need at least maxn = $(maxn_x). (cf z0 = $z0)""")
+         error("length(Rn) < maxn + (pl + pr) * (order - 1)")
+      end
+      maxn_x_total[z0] = max(maxn_x_total[z0], maxn_x[z0])
+
+      # get the basis spec and extend it as required for the pure symmetrisation 
+      orders = [ length(bb.oneps) for bb in spec ]
+      N1 = maximum(findall(orders .== 1)) 
+      # check the assumption that the order-1 basis functions all come before N1
+      @assert all(isequal(1), orders[1:N1])   
+      new_spec = [ PIBasisFcn(z0, (NLMZ(n, 0, 0, _i2z(iz)), ))
+                   for iz in 1:length(species) for n = 1:maxn_x[_i2z(iz)] ]
+      spec_x[z0] = [ new_spec; spec[N1+1:end] ]
+   end 
 
    # generate the new pi basis with the extended 2b contribution 
    spec1_x = filter( b -> (degree(D, b) <= maxdeg) || 
-                         (b.n <= maxn_x && b.l == 0), B1p.spec )
+                         (b.n <= maxn_x_total[b.z] && b.l == 0), B1p.spec )
    B1p_x = BasicPSH1pBasis(Rn, B1p.zlist, spec1_x)
-   pibasis_x = pibasis_from_specs(B1p_x, (spec_x,) )
+   spec_x_list = ntuple(iz -> spec_x[_i2z(iz)], length(species))
+   pibasis_x = pibasis_from_specs(B1p_x, spec_x_list )
    for iz = 1:length(species)
-      @assert get_basis_spec(pibasis_x, iz) == spec_x
+      @assert get_basis_spec(pibasis_x, iz) == spec_x[_i2z(iz)]
    end
 
    return pibasis_x
