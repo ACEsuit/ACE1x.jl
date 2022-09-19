@@ -139,12 +139,12 @@ function correct_coupling_coeffs!(rpibasis)
          c_nnll = Fac[1] 
 
          # add the entries P^nn_n1 t0 CC in the column (z, n1, 0, 0)
-         # I am making two assumptions here: 
+         # TODO: I am making two assumptions here: 
          #   (i) The (z n 0 0) take the form Rn(r) Y00(rhat) 
          #        with Y00 = 1 / sqrt(4 pi) (cf factor above)
          #   (ii) secondly, I am assuming that the AA basis spec 
-         #        starts with the (z n 0 0) basis functions. Both of these 
-         #        need to be checked and fixed somehow. 
+         #        starts with the (z n 0 0) basis functions. 
+         # Both of these need to be checked and fixed somehow. 
          z = zz[1] 
          p_nn = Pnn[nn]
          for (n1, p_nn_n1) in zip(p_nn.nzind, p_nn.nzval)
@@ -181,7 +181,7 @@ function remove_2b!(rpibasis, I2b, delete2b, maxdeg)
       Idel = I2b[ degrees .<= maxdeg ]
    end
 
-   CC[Idel] .= 0.0 
+   CC[Idel, :] .= 0.0 
    return nothing 
 end
 
@@ -207,7 +207,7 @@ function pure2b_basis(; species = nothing, Rn = nothing,
    # remove the 2b 
    #      if delete2b == true then all will be removed. 
    #      if delete2b == false then only the ones with too high degree.
-   # remove_2b!(rpibasis, I2b, delete2b, maxdeg)
+   remove_2b!(rpibasis, I2b, delete2b, maxdeg)
 
    return rpibasis
 end

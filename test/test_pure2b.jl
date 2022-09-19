@@ -1,16 +1,17 @@
 
-using ACE1x, ACE1
+using ACE1x, ACE1, Test 
 
 using ACE1: PolyTransform, transformed_jacobi, SparsePSHDegree, BasicPSH1pBasis, evaluate 
 using ACE1.Random: rand_vec 
+using ACE1.Testing: print_tf 
 using LinearAlgebra: qr, norm, Diagonal, I
 using SparseArrays
-using ProgressMeter 
+using JuLIP 
 
 ##
 
-ord = 2
-maxdeg = 8
+ord = 4
+maxdeg = 15
 r0 = 1.0
 rin = 0.5
 rcut = 3.0
@@ -24,7 +25,7 @@ trans = PolyTransform(1, r0)
 ninc = (pcut + pin) * (ord-1)
 maxn = maxdeg + ninc 
 Pr = transformed_jacobi(maxn, trans, rcut, rin; pcut = pcut, pin = pin)
-species = [AtomicNumber(:X),]
+species = [ zX,]
 
 ## 
 
@@ -35,42 +36,50 @@ rpibasis = ACE1x.Pure2b.pure2b_basis(species = species,
                                        order=ord, 
                                        delete2b = true)
 
-rpibasis1 = ACE1.Utils.rpi_basis(; species=species, N = ord, maxdeg=maxdeg, 
-                                 rbasis=Pr, D=D)
 
 spec = ACE1.get_nl(rpibasis)
-spec1 = ACE1.get_nl(rpibasis1)
-spec[13:end] == spec1[9:end]
 
 ##
 
-ii = 13:19 
-ii1 = 9:15
+tol = 1e-12 # this seems crude but is needed because of roundoff errors
+            # in the larger degree basis functions 
 
-r = ACE1.rand_radial(Pr)
-Rs, Zs, z0 = [ JVecF(r, 0, 0), ], [ zX, ], zX 
-B = ACE1.evaluate(rpibasis, Rs, Zs, z0)
-B1 = ACE1.evaluate(rpibasis1, Rs, Zs, z0)
+@info("Test evaluate of dimer = 0")
+for ntest = 1:30 
+   r = ACE1.rand_radial(Pr)
+   Rs, Zs, z0 = [ JVecF(r, 0, 0), ], [ zX, ], zX 
+   B = ACE1.evaluate(rpibasis, Rs, Zs, z0)
+   print_tf(@test( norm(B, Inf) < 1e-12 )) 
+end
+println() 
 
-@info("Basis functions 16:20")
-display(spec[ii])
-@info("Corresponding basis function values")
-display([ B[ii] B1[ii1] ] ) 
+## 
 
-Br = B[ii] - B1[ii1]
-Br ./ B1[ii1]
+@info("Test energy of dimer = 0")
+for ntest = 1:30 
+   r = ACE1.rand_radial(Pr)
+   at = Atoms(X = [ JVecF(0, 0, 0), JVecF(r, 0, 0) ], 
+            Z = [ zX, zX ], 
+            cell = [5.0 0 0; 0 5.0 0; 0 0.0 5.0], 
+            pbc = false)
+   B = energy(rpibasis, at)
+   print_tf(@test( norm(B, Inf) < 1e-12 )) 
+end
+println() 
 
-# ## 
+## 
 
-# using JuLIP 
-# zX = AtomicNumber(:X)
+@info("Confirm that invariance is preserved")
 
-# # for ntest = 1:30 
-
-# r = ACE1.rand_radial(Pr)
-# at = Atoms(X = [ JVecF(0, 0, 0), JVecF(r, 0, 0) ], 
-#            Z = [ zX, zX ], 
-#            cell = [5.0 0 0; 0 5.0 0; 0 0.0 5.0], 
-#            pbc = false)
-# B = energy(rpibasis, at)
-
+@info("Test energy of dimer = 0")
+for ntest = 1:30 
+   nat = 10 
+   Rs = [ ACE1.rand_radial(Pr) * ACE1.Random.rand_sphere() for _=1:nat]
+   Zs = fill(zX, nat)
+   
+   Rs1, Zs1 = ACE1.Random.rand_sym(Rs, Zs)
+   
+   print_tf(@test( evaluate(rpibasis, Rs,  Zs,  zX) ≈ 
+                   evaluate(rpibasis, Rs1, Zs1, zX) ))
+end
+println() 
