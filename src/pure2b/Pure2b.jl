@@ -36,6 +36,7 @@ function Rn_prod_coeffs(Rn, NN; tol=1e-12)
    return Pnn 
 end
 
+
 function get_NN(pibasis)
    NN = Vector{Int}[] 
    spec_x = get_basis_spec(pibasis, 1)
@@ -70,7 +71,11 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
    maxn = maximum( maximum(b.n for b in bb.oneps) for bb in spec )
    # check that the maxn in Rn is ok 
    maxn_x = maxn + (Rn.J.pl + Rn.J.pr) * (order - 1)
-   @assert length(Rn) >= maxn_x 
+   if !(length(Rn) >= maxn_x)
+      @info("""Rn is too short: length(Rn) = $(length(Rn)), 
+               need at least maxn_x = $(maxn_x).""")
+      error("length(Rn) < maxn + (pl + pr) * (order - 1)")
+   end
 
    # get the basis spec and extend it as required for the pure symmetrisation 
    spec = get_basis_spec(pibasis, 1) 
@@ -96,6 +101,7 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
    return pibasis_x
 end
 
+
 function correct_coupling_coeffs!(rpibasis)
 
    Rn = rpibasis.pibasis.basis1p.J
@@ -103,29 +109,55 @@ function correct_coupling_coeffs!(rpibasis)
    Pnn = Rn_prod_coeffs(Rn, NN)
    spec_x = get_basis_spec(rpibasis.pibasis, 1)
 
+   # to get the nnll_factors we need to evaluate the basis before messing 
+   # with the coupling coefficients 
+   zX = AtomicNumber(:X)
+   rr = [ rand_radial(Rn) for _=1:3 ] 
+   rr_B = [ evaluate(rpibasis, [JVecF(r, 0, 0),],  [zX,], zX) for r in rr ]
+   rr_Rn = [ evaluate(Rn, r) for r in rr ] 
+
    CC = rpibasis.A2Bmaps[1]
    I2b = Int[] 
    
    for idx = 1:size(CC, 1)
       iAA = findfirst(CC[idx, :] .!= 0) 
       if isnothing(iAA); continue; end 
-      nn = [b.n for b in spec_x[iAA].oneps] 
+      nn = [b.n for b in spec_x[iAA].oneps]
       zz = [b.z for b in spec_x[iAA].oneps] 
       ll = [b.l for b in spec_x[iAA].oneps] 
-      if all(ll .== 0) && all(zz .== zz[1]) && length(nn) > 1
+
+      if all(zz .== zz[1]) && length(nn) > 1
+         # to get the multiplicative factor from the Ylms and from the 
+         # rescaled coupling coefficients we need the product of Rn: 
+         # we compute the normalization constant several times and check 
+         # that it is the same every time. 
+         prod_Rn = [ prod(rr_Rn[i][nn[a]] for a = 1:length(nn))
+                     for i = 1:length(rr) ]
+         Fac = [ rr_B[i][idx] / prod_Rn[i] * (2*sqrt(pi))
+                 for i = 1:length(rr) ]
+         @assert all(f ≈ Fac[1] for f in Fac)
+         c_nnll = Fac[1] 
+
          # add the entries P^nn_n1 t0 CC in the column (z, n1, 0, 0)
+         # I am making two assumptions here: 
+         #   (i) The (z n 0 0) take the form Rn(r) Y00(rhat) 
+         #        with Y00 = 1 / sqrt(4 pi) (cf factor above)
+         #   (ii) secondly, I am assuming that the AA basis spec 
+         #        starts with the (z n 0 0) basis functions. Both of these 
+         #        need to be checked and fixed somehow. 
          z = zz[1] 
          p_nn = Pnn[nn]
          for (n1, p_nn_n1) in zip(p_nn.nzind, p_nn.nzval)
             b = NLMZ(n1, 0, 0, z)
             iAA_b = N00Z[b]
-            CC[iAA_b] = p_nn_n1 
+            CC[idx, iAA_b] -= c_nnll * p_nn_n1 
          end
       end
       if length(nn) == 1 
          push!(I2b, idx)
          # push!(spec_2b, (nn[1], ll[1], zz[1]))
       end
+
    end   
    return I2b 
 end
@@ -175,7 +207,7 @@ function pure2b_basis(; species = nothing, Rn = nothing,
    # remove the 2b 
    #      if delete2b == true then all will be removed. 
    #      if delete2b == false then only the ones with too high degree.
-   remove_2b!(rpibasis, I2b, delete2b, maxdeg)
+   # remove_2b!(rpibasis, I2b, delete2b, maxdeg)
 
    return rpibasis
 end
