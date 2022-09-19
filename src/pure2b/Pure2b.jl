@@ -5,7 +5,7 @@ using ACE1
 
 using ACE1: SparsePSHDegree, BasicPSH1pBasis, PIBasis, get_basis_spec, 
             PIBasisFcn, pibasis_from_specs, degree, 
-            rand_radial, order, evaluate, i2z, z2i
+            rand_radial, order, evaluate, i2z, z2i, numz
 using ACE1.RPI: RPIBasis, RPIFilter   
 
 using LinearAlgebra: qr, norm
@@ -39,26 +39,28 @@ end
 
 function get_NN(pibasis)
    NN = Vector{Int}[] 
-   spec_x = get_basis_spec(pibasis, 1)
-   N00Z = Dict{NLMZ, Int}()
+   N00Z = [ Dict{NLMZ, Int}() for iz0 = 1:length(pibasis.inner) ]
    
-   for (ibb, bb) in enumerate(spec_x)
-      if (order(bb) > 1) && # we don't need to do anything about 1-correlations
-            all(b.l == 0 for b in bb.oneps) &&  # l ≂̸ becomes pure after symmetrisation
-            all(b.z == bb.oneps[1].z for b in bb.oneps)  # all z must be the same
-         nn = [ b.n for b in bb.oneps ]      
-         push!(NN, nn)
-      end
-   
-      if order(bb) == 1 
-         b = bb.oneps[1] 
-         if b.l == 0 
-            N00Z[b] = ibb 
+   for iz0 = 1:length(pibasis.inner)
+      spec_x = get_basis_spec(pibasis, iz0)
+      for (ibb, bb) in enumerate(spec_x)
+         if (order(bb) > 1) && # we don't need to do anything about 1-correlations
+               all(b.l == 0 for b in bb.oneps) &&  # l ≂̸ becomes pure after symmetrisation
+               all(b.z == bb.oneps[1].z for b in bb.oneps)  # all z must be the same
+            nn = [ b.n for b in bb.oneps ]      
+            push!(NN, nn)
+         end
+      
+         if order(bb) == 1 
+            b = bb.oneps[1] 
+            if b.l == 0 
+               N00Z[iz0][b] = ibb 
+            end
          end
       end
-   end
+   end 
 
-   return NN, N00Z 
+   return unique(NN), N00Z
 end 
 
 function extended_rpibasis(species, Rn, D, maxdeg, order, 
@@ -119,81 +121,85 @@ function correct_coupling_coeffs!(rpibasis)
    Rn = rpibasis.pibasis.basis1p.J
    NN, N00Z = get_NN(rpibasis.pibasis)
    Pnn = Rn_prod_coeffs(Rn, NN)
-   spec_x = get_basis_spec(rpibasis.pibasis, 1)
-
-   # to get the nnll_factors we need to evaluate the basis before messing 
-   # with the coupling coefficients 
-   zX = AtomicNumber(:X)
-   rr = [ rand_radial(Rn) for _=1:3 ] 
-   rr_B = [ evaluate(rpibasis, [JVecF(r, 0, 0),],  [zX,], zX) for r in rr ]
-   rr_Rn = [ evaluate(Rn, r) for r in rr ] 
-
-   CC = rpibasis.A2Bmaps[1]
-   I2b = Int[] 
    
-   for idx = 1:size(CC, 1)
-      iAA = findfirst(CC[idx, :] .!= 0) 
-      if isnothing(iAA); continue; end 
-      nn = [b.n for b in spec_x[iAA].oneps]
-      zz = [b.z for b in spec_x[iAA].oneps] 
-      ll = [b.l for b in spec_x[iAA].oneps] 
+   NZ = numz(rpibasis)
+   _i2z(i) = i2z(rpibasis, i)
+   _z2i(z) = z2i(rpibasis, z)
+   
+   for iz0 in 1:NZ
+      z0 = _i2z(iz0)
+      spec_x = get_basis_spec(rpibasis.pibasis, iz0)
 
-      if all(zz .== zz[1]) && length(nn) > 1
-         # to get the multiplicative factor from the Ylms and from the 
-         # rescaled coupling coefficients we need the product of Rn: 
-         # we compute the normalization constant several times and check 
-         # that it is the same every time. 
-         prod_Rn = [ prod(rr_Rn[i][nn[a]] for a = 1:length(nn))
-                     for i = 1:length(rr) ]
-         Fac = [ rr_B[i][idx] / prod_Rn[i] * (2*sqrt(pi))
-                 for i = 1:length(rr) ]
-         @assert all(f ≈ Fac[1] for f in Fac)
-         c_nnll = Fac[1] 
+      # to get the nnll_factors we need to evaluate the basis before messing 
+      # with the coupling coefficients 
+      rr = [ rand_radial(Rn) for _=1:3 ] 
+      rr_B = [ evaluate(rpibasis, [JVecF(r, 0, 0),],  [_i2z(iz),], z0) 
+               for r in rr, iz in 1:NZ ]
+      rr_Rn = [ evaluate(Rn, r) for r in rr ]
 
-         # add the entries P^nn_n1 t0 CC in the column (z, n1, 0, 0)
-         # TODO: I am making two assumptions here: 
-         #   (i) The (z n 0 0) take the form Rn(r) Y00(rhat) 
-         #        with Y00 = 1 / sqrt(4 pi) (cf factor above)
-         #   (ii) secondly, I am assuming that the AA basis spec 
-         #        starts with the (z n 0 0) basis functions. 
-         # Both of these need to be checked and fixed somehow. 
-         z = zz[1] 
-         p_nn = Pnn[nn]
-         for (n1, p_nn_n1) in zip(p_nn.nzind, p_nn.nzval)
-            b = NLMZ(n1, 0, 0, z)
-            iAA_b = N00Z[b]
-            CC[idx, iAA_b] -= c_nnll * p_nn_n1 
+      CC = rpibasis.A2Bmaps[iz0]
+   
+      for idx = 1:size(CC, 1)  # loop over all BB basis functions for z0 
+         iAA = findfirst(CC[idx, :] .!= 0) 
+         if isnothing(iAA); continue; end   # empty basis function ?!?!
+         nn = [b.n for b in spec_x[iAA].oneps]
+         zz = [b.z for b in spec_x[iAA].oneps] 
+         ll = [b.l for b in spec_x[iAA].oneps] 
+
+         if all(zz .== zz[1]) && length(nn) > 1
+            z = zz[1] 
+            iz = _z2i(z)
+
+            # to get the multiplicative factor from the Ylms and from the 
+            # rescaled coupling coefficients we need the product of Rn: 
+            # we compute the normalization constant several times and check 
+            # that it is the same every time. 
+            prod_Rn = [ prod(rr_Rn[i][nn[a]] for a = 1:length(nn))
+                        for i = 1:length(rr) ]
+            Fac = [ rr_B[i, iz][idx] / prod_Rn[i] * (2*sqrt(pi))
+                    for i = 1:length(rr) ]
+            @assert all(f ≈ Fac[1] for f in Fac)
+            c_nnll = Fac[1]
+
+            # add the entries P^nn_n1 t0 CC in the column (z, n1, 0, 0)
+            # TODO: I am making an assumptions here: 
+            #       The (z n 0 0) take the form Rn(r) Y00(rhat) 
+            #       with Y00 = 1 / sqrt(4 pi) (cf factor above)
+            # This needs to be checked and fixed somehow. 
+
+            p_nn = Pnn[nn]
+            for (n1, p_nn_n1) in zip(p_nn.nzind, p_nn.nzval)
+               b = NLMZ(n1, 0, 0, z)
+               iAA_b = N00Z[iz0][b]
+               CC[idx, iAA_b] -= c_nnll * p_nn_n1 
+            end
          end
-      end
-      if length(nn) == 1 
-         push!(I2b, idx)
-         # push!(spec_2b, (nn[1], ll[1], zz[1]))
-      end
 
-   end   
-   return I2b 
+      end   
+   end 
+
+   return nothing 
 end
 
-function remove_2b!(rpibasis, I2b, delete2b, maxdeg)
+function remove_2b!(rpibasis, delete2b, maxdeg)
+
    # decide whether to delete all 2b, or just the ones with 
    # too high a degree (note they will remain in the AA basis 
    # and only get deleted from the B basis)
-   CC = rpibasis.A2Bmaps[1]
-
-   if delete2b 
-      Idel = I2b 
-   else 
-      degrees = zeros(Int, length(I2b))
-      for i = 1:length(I2b)
-         idx = I2b[i]
-         iAA = findfirst(CC[idx, :] .!= 0)
-         n = get_basis_spec(rpibasis.pibasis, 1, iAA).oneps[1].n
-         degrees[i] = n 
+   for iz0 = 1:numz(rpibasis)
+      CC = rpibasis.A2Bmaps[iz0]
+      for idx = 1:size(CC, 1)
+         iAA = findlast(CC[idx, :] .!= 0)
+         spec_iAA = get_basis_spec(rpibasis.pibasis, iz0, iAA).oneps
+         if length(spec_iAA) == 1
+            delete_iAA = delete2b || (spec_iAA[1].n > maxdeg)
+            if delete_iAA
+               CC[idx, :] .= 0.0
+            end
+         end
       end
-      Idel = I2b[ degrees .<= maxdeg ]
    end
 
-   CC[Idel, :] .= 0.0 
    return nothing 
 end
 
@@ -214,12 +220,12 @@ function pure2b_basis(; species = nothing, Rn = nothing,
    rpibasis = RPIBasis(pibasis_x)
    
    # correct the coupling coefficient matrix / A2B map 
-   I2b = correct_coupling_coeffs!(rpibasis)
+   correct_coupling_coeffs!(rpibasis)
 
    # remove the 2b 
    #      if delete2b == true then all will be removed. 
    #      if delete2b == false then only the ones with too high degree.
-   remove_2b!(rpibasis, I2b, delete2b, maxdeg)
+   remove_2b!(rpibasis, delete2b, maxdeg)
 
    return rpibasis
 end

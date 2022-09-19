@@ -70,8 +70,6 @@ println()
 ## 
 
 @info("Confirm that invariance is preserved")
-
-@info("Test energy of dimer = 0")
 for ntest = 1:30 
    nat = 10 
    Rs = [ ACE1.rand_radial(Pr) * ACE1.Random.rand_sphere() for _=1:nat]
