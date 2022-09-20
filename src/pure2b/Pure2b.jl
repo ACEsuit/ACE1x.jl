@@ -71,7 +71,7 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
    _i2z(i::Integer) = i2z(pibasis, i)
 
    spec_x = Dict{Any, Any}([z => nothing for z in species]...)
-   maxn_x_total = Dict{Any, Int}([z => 0 for z in species]...)
+   maxn_x_total = 0 
 
    for iz0 = 1:length(pibasis.inner)
       z0 = _i2z(iz0)
@@ -90,7 +90,7 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
                   need at least maxn = $(maxn_x). (cf z0 = $z0)""")
          error("length(Rn) < maxn + (pl + pr) * (order - 1)")
       end
-      maxn_x_total[z0] = max(maxn_x_total[z0], maxn_x[z0])
+      maxn_x_total = max(maxn_x_total, maxn_x[z0])
 
       # get the basis spec and extend it as required for the pure symmetrisation 
       orders = [ length(bb.oneps) for bb in spec ]
@@ -103,8 +103,10 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
    end 
 
    # generate the new pi basis with the extended 2b contribution 
+   @assert B1p isa BasicPSH1pBasis
    spec1_x = filter( b -> (degree(D, b) <= maxdeg) || 
-                         (b.n <= maxn_x_total[b.z] && b.l == 0), B1p.spec )
+                         (b.n <= maxn_x_total && b.l == 0), 
+                     B1p.spec )
    B1p_x = BasicPSH1pBasis(Rn, B1p.zlist, spec1_x)
    spec_x_list = ntuple(iz -> spec_x[_i2z(iz)], length(species))
    pibasis_x = pibasis_from_specs(B1p_x, spec_x_list )
@@ -132,8 +134,9 @@ function correct_coupling_coeffs!(rpibasis)
 
       # to get the nnll_factors we need to evaluate the basis before messing 
       # with the coupling coefficients 
+      Iz0 = rpibasis.Bz0inds[iz0]
       rr = [ rand_radial(Rn) for _=1:3 ] 
-      rr_B = [ evaluate(rpibasis, [JVecF(r, 0, 0),],  [_i2z(iz),], z0) 
+      rr_B = [ evaluate(rpibasis, [JVecF(r, 0, 0),],  [_i2z(iz),], z0)[Iz0] 
                for r in rr, iz in 1:NZ ]
       rr_Rn = [ evaluate(Rn, r) for r in rr ]
 
@@ -215,7 +218,7 @@ function pure2b_basis(; species = nothing, Rn = nothing,
    # construct the extended PI Basis    
    pibasis_x = extended_rpibasis(species, Rn, D, maxdeg, order, 
                                  constants)
-   
+                              
    # symmetrize it 
    rpibasis = RPIBasis(pibasis_x)
    

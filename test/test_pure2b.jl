@@ -8,6 +8,8 @@ using LinearAlgebra: qr, norm, Diagonal, I
 using SparseArrays
 using JuLIP 
 
+@info(" ============ ACE1x - Pure2b ============ ")
+
 ##
 
 ord = 4
