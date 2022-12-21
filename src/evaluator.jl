@@ -147,6 +147,28 @@ function ACE1.evaluate!(tmp, V::NewEvaluator, Rs, Zs, z0)
 end
 
 
+function evaluate_d_inner(V::NewEvaluator, Rn, Ylm)
+   # first the forward pass 
+   A = ACEcore.evalpool(V.bA, (Rn, Ylm))
+   AA = ACEcore.evaluate(V.bAA, A)
+   val = real_dot(V.params, AA)
+
+   # and the backward pass 
+   # [∂AA] := ∂V / ∂AA = params 
+   ∂AA = V.params    
+   # ∂V / ∂A = [∂AA] * ∂AA / ∂A
+   T∂A = promote_type(eltype(∂AA), eltype(A))
+   ∂A = zeros(T∂A, length(A))
+   ACEcore.pullback_arg!(∂A, ∂AA, V.bAA, AA)
+   # ∂V / ∂P = [∂A] * ∂A / ∂P
+   ∂Rn, ∂Ylm = ACEcore._pullback_evalpool(∂A, V.bA, (Rn, Ylm))
+
+   ACEcore.release!(A)
+   ACEcore.release!(AA)
+
+   return val, real.(∂Rn), ∂Ylm
+end
+
 
 
 function ACE1.evaluate_d!(dEs, tmp, V::NewEvaluator, Rs, Zs, z0)
@@ -180,16 +202,17 @@ function ACE1.evaluate_d!(dEs, tmp, V::NewEvaluator, Rs, Zs, z0)
       for i = 1:length(Rs)
          rr = Rs[i]
          r = norm(rr)
-         dEs[i] += (Rn_d[i, n] * real(∂Rn[n]) / r) * rr
+         dEs[i] += (Rn_d[i, n] * real(∂Rn[i, n]) / r) * rr
       end
    end
    for lm = 1:size(Ylm, 2)
       for i = 1:length(Rs)
-         dEs[i] += real.(Ylm_d[i, lm] * ∂Ylm[lm])
+         dEs[i] += real(Ylm_d[i, lm] * ∂Ylm[i, lm])
       end
    end
 
    Polynomials4ML.release!(Ylm)
+   Polynomials4ML.release!(Ylm_d)
    ACEcore.release!(A)
    ACEcore.release!(AA)
    ACEcore.release!(∂Rn)

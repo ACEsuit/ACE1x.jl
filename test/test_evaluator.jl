@@ -89,8 +89,32 @@ dEs1 = ACE1.evaluate_d(V, Rs, Zs, z0)
 
 dEs1 ≈ dEs2 
 
+##
+using JuLIP: JVec
+Rn = randn(5, length(V_new.bR))
+Ylm = randn(ComplexF64, 5, length(V_new.bY))
 
+val, ∂Rn, ∂Ylm = ACE1x.Evaluator.evaluate_d_inner(V_new, Rn, Ylm)
 
+@info("∂R")
+U = randn(size(Rn))
+size(∂Rn) == size(Rn)
+for h in (0.1).^(2:10)
+   val_h, _, _ = ACE1x.Evaluator.evaluate_d_inner(V_new, Rn + h * U, Ylm)
+   val_dh = (val_h - val) / h 
+   @printf(" %.2e  |  %.2e \n", h, norm(val_dh - dot(U, ∂Rn), Inf))
+end
+
+@info("∂Y")
+U = randn(ComplexF64, size(Ylm))
+__dot(U, ∂Ylm) = dot(real.(U), real.(∂Ylm)) - dot(imag.(U), imag.(∂Ylm))
+
+size(∂Ylm) == size(Ylm)
+for h in (0.1).^(2:10)
+   val_h, _, _ = ACE1x.Evaluator.evaluate_d_inner(V_new, Rn, Ylm + h * U)
+   val_dh = (val_h - val) / h 
+   @printf(" %.2e  |  %.2e \n", h, norm(val_dh - __dot(U, ∂Ylm), Inf))
+end
 
 
 ##
