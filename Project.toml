@@ -6,8 +6,10 @@ version = "0.0.1"
 [deps]
 ACE1 = "e3f9bc04-086e-409a-ba78-e9769fe067bb"
 ACEcore = "44c1e890-45d1-48ea-94d6-c2ea5b573f71"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 JuLIP = "945c410c-986d-556a-acb1-167a618e0462"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+ObjectPools = "658cac36-ff0f-48ad-967c-110375d98c9d"
 Polynomials4ML = "03c4bcba-a943-47e9-bfa1-b1661fc2974f"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
