@@ -54,78 +54,38 @@ Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
 #    end
 # end
 
-##
+# ##
 
-bA = V_new.bA
-cY = randn(ComplexF64, 50, length(V_new.bY))
-rY = randn(50, length(V_new.bY))
-Rn = randn(50, length(V_new.bR))
+# bA = V_new.bA
+# cY = randn(ComplexF64, 50, length(V_new.bY))
+# rY = randn(50, length(V_new.bY))
+# Rn = randn(50, length(V_new.bR))
 
-cA = zeros(ComplexF64, length(bA))
-rA = zeros(length(bA))
+# cA = zeros(ComplexF64, length(bA))
+# rA = zeros(length(bA))
 
-@info("complex evalpool")
-@btime ACEcore.evalpool!($cA, $bA, ($Rn, $cY))
-@info("real evalpool")
-@btime ACEcore.evalpool!($rA, $bA, ($Rn, $rY))
+# @info("complex evalpool")
+# @btime ACEcore.evalpool!($cA, $bA, ($Rn, $cY))
+# @info("real evalpool")
+# @btime ACEcore.evalpool!($rA, $bA, ($Rn, $rY))
 
-##
+# ##
 
-rbY = Polynomials4ML.RYlmBasis(5)
-cbY = Polynomials4ML.CYlmBasis(5)
-@info("Complex Ylm")
-@btime (Y = Polynomials4ML.evaluate($cbY, $Rs); 
-        Polynomials4ML.release!(Y))
-@info("Real Ylm")
-@btime (Y = Polynomials4ML.evaluate($rbY, $Rs); 
-        Polynomials4ML.release!(Y))
+# rbY = Polynomials4ML.RYlmBasis(5)
+# cbY = Polynomials4ML.CYlmBasis(5)
+# @info("Complex Ylm")
+# @btime (Y = Polynomials4ML.evaluate($cbY, $Rs); 
+#         Polynomials4ML.release!(Y))
+# @info("Real Ylm")
+# @btime (Y = Polynomials4ML.evaluate($rbY, $Rs); 
+#         Polynomials4ML.release!(Y))
 
 ##
 
 dEs2 = zeros(JVecF, length(Rs))
 dEs2 = ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
-
 dEs1 = ACE1.evaluate_d(V, Rs, Zs, z0)
-
-dEs1 ≈ dEs2 
-
-##
-using JuLIP: JVec
-Rn = randn(5, length(V_new.bR))
-Ylm = randn(ComplexF64, 5, length(V_new.bY))
-
-val, ∂Rn, ∂Ylm = ACE1x.Evaluator.evaluate_d_inner(V_new, Rn, Ylm)
-
-@info("∂R")
-U = randn(size(Rn))
-size(∂Rn) == size(Rn)
-for h in (0.1).^(2:10)
-   val_h, _, _ = ACE1x.Evaluator.evaluate_d_inner(V_new, Rn + h * U, Ylm)
-   val_dh = (val_h - val) / h 
-   @printf(" %.2e  |  %.2e \n", h, norm(val_dh - dot(U, ∂Rn), Inf))
-end
-
-@info("∂Y")
-U = randn(ComplexF64, size(Ylm))
-__dot(U, ∂Ylm) = dot(real.(U), real.(∂Ylm)) - dot(imag.(U), imag.(∂Ylm))
-
-size(∂Ylm) == size(Ylm)
-for h in (0.1).^(2:10)
-   val_h, _, _ = ACE1x.Evaluator.evaluate_d_inner(V_new, Rn, Ylm + h * U)
-   val_dh = (val_h - val) / h 
-   @printf(" %.2e  |  %.2e \n", h, norm(val_dh - __dot(U, ∂Ylm), Inf))
-end
-
+@show dEs1 ≈ dEs2 
 
 ##
 
-
-# using Printf 
-
-# rr =  norm.(Rs)
-# Rn, Rn_d = ACE1x.Evaluator.evaluate_ed(V_new.bR, rr)
-# for h in (0.1).^(2:10)
-#    Rn_h = ACE1x.Evaluator.evaluate(V_new.bR, rr .+ h)
-#    Rn_dh = (Rn_h - Rn) / h 
-#    @printf(" %.2e  |  %.2e \n", h, norm(Rn_d - Rn_dh, Inf))   
-# end
