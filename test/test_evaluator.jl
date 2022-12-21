@@ -89,3 +89,26 @@ dEs1 = ACE1.evaluate_d(V, Rs, Zs, z0)
 
 ##
 
+dEs1 = zeros(JVecF, length(Rs))
+tmp_d = JuLIP.alloc_temp_d(V, length(Rs))
+JuLIP.evaluate_d!(dEs1, tmp_d, V, Rs, Zs, z0)
+
+dEs2 = zeros(JVecF, length(Rs))
+dEs2 = ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
+
+@info("Profile site gradients")
+@info("old")
+@btime JuLIP.evaluate_d!($dEs1, $tmp_d, $V, $Rs, $Zs, $z0)
+@info("new")
+@btime ACE1.evaluate_d!($dEs2, nothing, $V_new, $Rs, $Zs, $z0)
+
+
+##
+
+@profview let dEs2 = dEs2, V_new = V_new, Rs = Rs, Zs = Zs, z0 = z0
+   for _ = 1:30_000
+      ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
+   end
+end
+
+
