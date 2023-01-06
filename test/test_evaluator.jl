@@ -13,16 +13,19 @@ using Polynomials4ML
 ##
 
 @info("Basic test of PIPotential construction and evaluation")
-maxdeg = 10
+maxdeg = 15
+order = 3
 r0 = 1.0
 rcut = 3.0
 trans = PolyTransform(1, r0)
 Pr = transformed_jacobi(maxdeg, trans, rcut; pcut = 2)
 D = ACE1.SparsePSHDegree()
 P1 = ACE1.BasicPSH1pBasis(Pr; species = :X, D = D)
-basis = ACE1.PIBasis(P1, 3, D, maxdeg)
+basis = ACE1.PIBasis(P1, order, D, maxdeg)
 c = ACE1.Random.randcoeffs(basis)
 V = combine(basis, c)
+
+@show length(basis)
 
 Nat = 15
 Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
@@ -105,10 +108,36 @@ dEs2 = ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
 
 ##
 
-@profview let dEs2 = dEs2, V_new = V_new, Rs = Rs, Zs = Zs, z0 = z0
-   for _ = 1:30_000
-      ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
+# @profview let dEs2 = dEs2, V_new = V_new, Rs = Rs, Zs = Zs, z0 = z0
+#    for _ = 1:30_000
+#       ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
+#    end
+# end
+
+##
+
+Nat = length(Rs)
+Nbatch = 8 
+Rs_b = repeat(Rs, Nbatch)
+Zs_b = repeat(Zs, Nbatch)
+Z0s = fill(z0, Nbatch * Nat)
+I0s = vcat( [fill(i, Nat) for i = 1:Nbatch]... )
+
+val = ACE1.evaluate(V_new, Rs, Zs, z0)
+vals = ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
+
+@show all(vals .≈ val)
+
+##
+
+@btime begin; e = 0.0; for _=1:$Nbatch; e += ACE1.evaluate($V_new, $Rs, $Zs, $z0); end; e; end 
+@btime sum(ACE1x.Evaluator.eval_batch!(nothing, $V_new, $Rs_b, $Zs_b, $Z0s, $I0s))
+
+
+##
+
+@profview let V_new = V_new, Rs_b = Rs_b, Zs_b = Zs_b, Z0s = Z0s, I0s = I0s
+   for _ = 1:400
+      ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
    end
 end
-
-

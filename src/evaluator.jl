@@ -199,4 +199,43 @@ end
 
 
 
+
+
+function real_dot_batch(AA::AbstractMatrix, b::AbstractVector)
+   T = real(promote_type(eltype(AA), eltype(b)))
+   nX = size(AA, 1)
+   val = zeros(T, nX)
+   @assert size(AA, 2) == length(b)
+   @inbounds for j = 1:length(b)
+      bj = real(b[j])
+      @simd ivdep for i = 1:nX
+         val[i] = muladd(real(AA[i, j]), bj, val[i])
+      end
+   end
+   return val 
+end
+
+
+
+function eval_batch!(tmp, V::NewEvaluator, 
+                     Rs, Zs, Z0s, I0s)
+   mini, maxi = extrema(I0s)                     
+   @assert mini >= 1
+   Rn = evaluate(V.bR, norm.(Rs))
+   Ylm = Polynomials4ML.evaluate(V.bY, Rs)
+   A = zeros(ComplexF64, maxi, length(V.bA))
+   ACEcore.evalpool_batch!(A, V.bA, (Rn, Ylm), I0s)
+
+   vals, AA = ACEcore.evaluate_dot(V.bAA, A, V.params, real)
+   
+   Polynomials4ML.release!(Ylm)
+   ACEcore.release!(A)
+   ACEcore.release!(AA)
+
+   return vals
+end
+
+
+
+
 end
