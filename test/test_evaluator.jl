@@ -13,7 +13,7 @@ using Polynomials4ML
 ##
 
 @info("Basic test of PIPotential construction and evaluation")
-maxdeg = 15
+maxdeg = 12
 order = 3
 r0 = 1.0
 rcut = 3.0
@@ -117,7 +117,10 @@ dEs2 = ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
 ##
 
 Nat = length(Rs)
-Nbatch = 8 
+Nbatch = 32
+Rs_ = [ deepcopy(Rs) for _=1:Nbatch ]
+Zs_ = [ deepcopy(Zs) for _=1:Nbatch ]
+z0_ = [ copy(z0) for _=1:Nbatch ]
 Rs_b = repeat(Rs, Nbatch)
 Zs_b = repeat(Zs, Nbatch)
 Z0s = fill(z0, Nbatch * Nat)
@@ -130,14 +133,53 @@ vals = ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
 
 ##
 
-@btime begin; e = 0.0; for _=1:$Nbatch; e += ACE1.evaluate($V_new, $Rs, $Zs, $z0); end; e; end 
+@btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
+@btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V_new, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
 @btime sum(ACE1x.Evaluator.eval_batch!(nothing, $V_new, $Rs_b, $Zs_b, $Z0s, $I0s))
 
 
 ##
 
 @profview let V_new = V_new, Rs_b = Rs_b, Zs_b = Zs_b, Z0s = Z0s, I0s = I0s
-   for _ = 1:400
+   for _ = 1:1000
       ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
    end
 end
+
+##
+
+length(V_new.bA)
+length(V_new.bAA)
+
+A = randn(ComplexF64, Nbatch, length(V_new.bA))
+AA = zeros(ComplexF64, Nbatch, length(V_new.bAA))
+c = randn(size(AA, 2))
+vals = zeros(Nbatch)
+
+# @btime ACEcore.evaluate!($AA,$(V_new.bAA), $A)
+# @btime ACEcore.evaluate_dot!($vals, $AA, $(V_new.bAA), $A, $c, real)
+
+rAA = real.(AA)
+rA = real.(A)
+
+# @btime mul!($vals, $rAA, $c)
+rAA1 = rAA[1,:]
+# @btime dot($rAA1, $c)
+
+@btime ACEcore.evaluate!($AA,$(V_new.bAA), $A)
+@btime ACEcore.evaluate!($rAA,$(V_new.bAA), $rA)
+
+# ACEcore.evaluate!(AA,(V_new.bAA), A)
+
+##
+
+@profview let AA=rAA, bAA = V_new.bAA,  A = rA
+   for _ = 1:6000
+      ACEcore.evaluate!(AA, bAA, A)
+   end
+end
+
+
+##
+
+V_new
