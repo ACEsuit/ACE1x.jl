@@ -13,7 +13,7 @@ using Polynomials4ML
 ##
 
 @info("Basic test of PIPotential construction and evaluation")
-maxdeg = 12
+maxdeg = 15
 order = 3
 r0 = 1.0
 rcut = 3.0
@@ -30,24 +30,73 @@ V = combine(basis, c)
 Nat = 15
 Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
 
+## 
+
+# construct a symmetry-reduced model
+
+spec = ACE1.get_basis_spec(V.pibasis, 1)
+
+inv_spec = Dict{Any, Int}() 
+for (i, bb) in enumerate(spec)
+   inv_spec[bb] = i
+end
+
+_refl(b::ACE1.RPI.PSH1pBasisFcn) = ACE1.RPI.PSH1pBasisFcn(b.n, b.l, -b.m, b.z)
+_refl(bb::ACE1.PIBasisFcn) = ACE1.PIBasisFcn(bb.z0, _refl.(bb.oneps), bb.top)
+
+refl_spec = _refl.(spec) 
+
+
+mirrors = [ haskey(inv_spec, bb) ? inv_spec[bb] : missing for bb in refl_spec ]
+nmiss = count(ismissing, mirrors) + count([ i === mirrors[i] for i = 1:length(spec) ])
+
+inner = V.pibasis.inner[1] 
+
+new_spec = [] 
+new_coeffs = Float64[] 
+
+for (i, (bb, refl_bb)) in enumerate(zip(spec, refl_spec))
+   if (bb == refl_bb) || !haskey(inv_spec, refl_bb)
+      push!(new_spec, bb)
+      push!(new_coeffs, V.coeffs[1][i])
+   else
+      i_refl = inv_spec[refl_bb]
+      if i_refl > i
+         push!(new_spec, bb)
+         t = (-1)^(sum(b.m for b in bb.oneps))
+         push!(new_coeffs, V.coeffs[1][i] + t * V.coeffs[1][i_refl])
+      end
+   end
+end
+
+length(spec) == (length(new_spec) - nmiss) * 2 + nmiss
+
+red_basis = ACE1.pibasis_from_specs(V.pibasis.basis1p, (new_spec,))
+V_red = ACE1.combine(red_basis, new_coeffs)
+
 ##
 
 @info("compare full model")
 V_new = ACE1x.Evaluator.NewEvaluator(V)
+V_new_red = ACE1x.Evaluator.NewEvaluator(V_red)
 
 val_new = ACE1.evaluate(V_new, Rs, Zs, z0)
 val_old = ACE1.evaluate(V, Rs, Zs, z0)
+val_red = ACE1.evaluate(V_red, Rs, Zs, z0)
+val_new_red = ACE1.evaluate(V_new_red, Rs, Zs, z0)
 
-@show val_new ≈ val_old
+@show val_new ≈ val_old ≈ val_red ≈ val_new_red
 
 ##
 
 Nat = 50
 Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
 
-@btime ACE1.evaluate($V, $Rs, $Zs, $z0)
-
-@btime ACE1.evaluate($V_new, $Rs, $Zs, $z0)
+@info("compare evaluation of single site")
+print(" original: "); @btime ACE1.evaluate($V, $Rs, $Zs, $z0)
+print("  reduced: "); @btime ACE1.evaluate($V_red, $Rs, $Zs, $z0)
+print("      new: "); @btime ACE1.evaluate($V_new, $Rs, $Zs, $z0)
+print("  new_red: "); @btime ACE1.evaluate($V_new_red, $Rs, $Zs, $z0)
 
 ##
 
@@ -133,16 +182,19 @@ vals = ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
 
 ##
 
+print("  original potential: ")
 @btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
+print("         new kernels: ")
 @btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V_new, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
-@btime sum(ACE1x.Evaluator.eval_batch!(nothing, $V_new, $Rs_b, $Zs_b, $Z0s, $I0s))
+print(" new kernels batched: ")
+@btime sum(ACE1x.Evaluator.eval_batch!(nothing, $V_new_red, $Rs_b, $Zs_b, $Z0s, $I0s))
 
 
 ##
 
 @profview let V_new = V_new, Rs_b = Rs_b, Zs_b = Zs_b, Z0s = Z0s, I0s = I0s
-   for _ = 1:1000
-      ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
+   for _ = 1:3000
+      ACE1x.Evaluator.eval_batch!(nothing, V_new_red, Rs_b, Zs_b, Z0s, I0s)
    end
 end
 
@@ -183,3 +235,7 @@ end
 ##
 
 V_new
+
+
+##
+

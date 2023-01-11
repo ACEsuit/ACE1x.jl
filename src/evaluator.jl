@@ -115,8 +115,11 @@ function NewEvaluator(V::PIPotential)
    orders = V.pibasis.inner[1].orders
    new_spec = [ iAA2iA[i, 1:orders[i]][:] for i = 1:length(orders) ]
    bAA = ACEcore.SparseSymmProdDAG(new_spec, T = ComplexF64)
+   params = V.coeffs[1] 
+   dag_params = zeros(Float64, length(bAA))
+   dag_params[bAA.projection] .= params
 
-   return NewEvaluator(bR, bY, bA, bAA, copy(V.coeffs[1]))
+   return NewEvaluator(bR, bY, bA, bAA, dag_params)
 end
 
 ACE1.evaluate(V::NewEvaluator, Rs, Zs, z0) = 
