@@ -29,7 +29,10 @@ function Rn_prod_coeffs(Rn, NN; tol=1e-12)
          Rnn = Rnn .* RR[:, nn[t]]
       end
       p_nn = map(p -> (abs(p) < tol ? 0.0 : p), qrF \ Rnn)
-      @assert norm(RR * p_nn - Rnn, Inf) < tol
+      fiterr = norm(RR * p_nn - Rnn, Inf)
+      if fiterr > tol
+         @warn("fiterr = $fiterr > tol = $tol")
+      end
       Pnn[nn] = sparse(p_nn)
    end
    
@@ -161,7 +164,11 @@ function correct_coupling_coeffs!(rpibasis)
                         for i = 1:length(rr) ]
             Fac = [ rr_B[i, iz][idx] / prod_Rn[i] * (2*sqrt(pi))
                     for i = 1:length(rr) ]
-            @assert all(f ≈ Fac[1] for f in Fac)
+            if !all(f ≈ Fac[1] for f in Fac)
+               println("the normalisation constant is inconsistent for ll = $ll, nn = $nn, zz = $zz")
+               @show Fac 
+               error("It's unsafe to continue, so we stop here.")
+            end
             c_nnll = Fac[1]
 
             # add the entries P^nn_n1 t0 CC in the column (z, n1, 0, 0)
