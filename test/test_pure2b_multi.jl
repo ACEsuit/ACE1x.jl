@@ -7,12 +7,12 @@ using ACE1.Testing: print_tf
 using LinearAlgebra: qr, norm, Diagonal, I
 using SparseArrays
 using JuLIP 
-
+using ACE1.Transforms: multitransform
 
 @info(" ============ ACE1x - Pure2b - Multi Species ============ ")
 ##
 
-ord = 2
+ord = 3
 maxdeg = 8
 r0 = 2.8 
 rin = 0.5 * r0
@@ -23,11 +23,15 @@ pcut = 2
 pin = 2
 D = SparsePSHDegree()
 
-trans = PolyTransform(1, r0)
+transforms = Dict(
+   [ (s1, s2) => PolyTransform(2, (rnn(s1)+rnn(s2))/2)
+     for (s1, s2) in [(:Ti, :Ti), (:Ti, :Al), (:Al, :Al) ]] ...)
+
+trans = multitransform(transforms; rin = 0.0, rcut = 6.0)
 
 ninc = (pcut + pin) * (ord-1)
 maxn = maxdeg + ninc 
-Pr = transformed_jacobi(maxn, trans, rcut, rin; pcut = pcut, pin = pin)
+Pr = transformed_jacobi(maxn, trans; pcut = 2)
 species = [ zTi, zAl ]
 
 ##
@@ -57,10 +61,12 @@ tol = 1e-12 # this seems crude but is needed because of roundoff errors
 
 @info("Test evaluate of dimer = 0")
 for ntest = 1:30 
-   r = ACE1.rand_radial(Pr)
-   Rs, Zs, z0 = [ JVecF(r, 0, 0), ], [ rand([zAl, zTi]), ], rand([zAl, zTi])
+   z = rand(species)
+   z0 = rand(species)
+   r = ACE1.rand_radial(Pr, z, z0)
+   Rs, Zs = [ JVecF(r, 0, 0), ], [ z, ]
    B = ACE1.evaluate(rpibasis, Rs, Zs, z0)
-   print_tf(@test( norm(B, Inf) < 1e-12 )) 
+   print_tf(@test( norm(B, Inf) < tol )) 
 end
 println()
 
@@ -69,13 +75,15 @@ println()
 
 @info("Test energy of dimer = 0")
 for ntest = 1:30 
-   r = ACE1.rand_radial(Pr)
+   z = rand(species)
+   z0 = rand(species)
+   r = ACE1.rand_radial(Pr, z, z0)
    at = Atoms(X = [ JVecF(0, 0, 0), JVecF(r, 0, 0) ], 
-            Z = rand(species, 2), 
+            Z = [z, z0], 
             cell = [5.0 0 0; 0 5.0 0; 0 0.0 5.0], 
             pbc = false)
    B = energy(rpibasis, at)
-   print_tf(@test( norm(B, Inf) < 1e-12 )) 
+   print_tf(@test( norm(B, Inf) < tol )) 
 end
 println() 
 
@@ -84,10 +92,9 @@ println()
 @info("Confirm that invariance is preserved")
 for ntest = 1:30 
    nat = 10 
-   Rs = [ ACE1.rand_radial(Pr) * ACE1.Random.rand_sphere() for _=1:nat]
    Zs = rand(species, nat)
    z0 = rand(species)
-   
+   Rs = [ ACE1.rand_radial(Pr, z, z0) * ACE1.Random.rand_sphere() for z in Zs]
    Rs1, Zs1 = ACE1.Random.rand_sym(Rs, Zs)
    
    print_tf(@test( evaluate(rpibasis, Rs,  Zs,  z0) ≈ 

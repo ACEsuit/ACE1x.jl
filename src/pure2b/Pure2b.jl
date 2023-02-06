@@ -122,23 +122,28 @@ function correct_coupling_coeffs!(rpibasis)
 
    Rn = rpibasis.pibasis.basis1p.J
    NN, N00Z = get_NN(rpibasis.pibasis)
-   Pnn = Rn_prod_coeffs(Rn, NN)
+   Pnn = Rn_prod_coeffs(Rn.J, NN)
    
    NZ = numz(rpibasis)
    _i2z(i) = i2z(rpibasis, i)
    _z2i(z) = z2i(rpibasis, z)
    
    for iz0 in 1:NZ
-      z0 = _i2z(iz0)
+      z0 = _i2z(iz0) 
       spec_x = get_basis_spec(rpibasis.pibasis, iz0)
 
       # to get the nnll_factors we need to evaluate the basis before messing 
       # with the coupling coefficients 
       Iz0 = rpibasis.Bz0inds[iz0]
-      rr = [ rand_radial(Rn) for _=1:3 ] 
-      rr_B = [ evaluate(rpibasis, [JVecF(r, 0, 0),],  [_i2z(iz),], z0)[Iz0] 
-               for r in rr, iz in 1:NZ ]
-      rr_Rn = [ evaluate(Rn, r) for r in rr ]
+      # rr = [ rand_radial(Rn, z, z0) for _=1:3 ]
+      len_rr = 3 
+      rr = Dict([ z => [ rand_radial(Rn, z, z0) for _=1:len_rr ] 
+                  for z in _i2z.(1:NZ) ]... )
+      rr_B =  [ evaluate(rpibasis, [JVecF(rr[z][ir], 0, 0),],  [z,], z0)[Iz0]
+                for ir = 1:len_rr, z in _i2z.(1:NZ) ]
+      # rr_Rn = [ evaluate(Rn, r) for r in rr ]
+      rr_Rn = [ evaluate(Rn, rr[z][ir], z, z0) 
+                for ir = 1:len_rr, z in _i2z.(1:NZ) ]
 
       CC = rpibasis.A2Bmaps[iz0]
    
@@ -157,11 +162,14 @@ function correct_coupling_coeffs!(rpibasis)
             # rescaled coupling coefficients we need the product of Rn: 
             # we compute the normalization constant several times and check 
             # that it is the same every time. 
-            prod_Rn = [ prod(rr_Rn[i][nn[a]] for a = 1:length(nn))
-                        for i = 1:length(rr) ]
-            Fac = [ rr_B[i, iz][idx] / prod_Rn[i] * (2*sqrt(pi))
-                    for i = 1:length(rr) ]
-            @assert all(f ≈ Fac[1] for f in Fac)
+            prod_Rn = [ prod(rr_Rn[ir, iz][nn[a]] for a = 1:length(nn))
+                        for ir = 1:len_rr ]
+            Fac = [ rr_B[ir, iz][idx] / prod_Rn[ir] * (2*sqrt(pi))
+                    for ir = 1:len_rr ]
+            if !all(f ≈ Fac[1] for f in Fac) 
+               @show Fac 
+               error("Ylm factor inconsistent - something is wrong.")
+            end
             c_nnll = Fac[1]
 
             # add the entries P^nn_n1 t0 CC in the column (z, n1, 0, 0)
