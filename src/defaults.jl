@@ -44,7 +44,7 @@ const _kw_defaults = Dict(:elements => nothing,
                           #
                           :pair_rcut => :rcut, 
                           :pair_degree => :totaldegree,
-                          :pair_transform => (:agnesi, 2, 4), 
+                          :pair_transform => (:agnesi, 1, 3), 
                           :pair_basis => :legendre,  
                           :pair_envelope => (:r, 2), 
                           # 

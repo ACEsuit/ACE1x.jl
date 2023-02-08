@@ -55,7 +55,7 @@ rpibasis = ACE1x.Pure2b.pure2b_basis(species = AtomicNumber.(elements),
 ## -------- Pair Basis 
 
 # the transform for the radial basis should be ok with (1, 4)
-ag_p_pair = 2; ag_q_pair = 4
+ag_p_pair = 1; ag_q_pair = 3
 function _r_basis(s1, s2) 
    _env = ACE1.PolyEnvelope(2, r0[(s1, s2)], r_cut_pair)
    _trans = agnesi_transform(r0[s1, s2], ag_p_pair, ag_q_pair) 
