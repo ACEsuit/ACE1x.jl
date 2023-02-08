@@ -1,8 +1,9 @@
 
-import YAML, ACE1 
+import YAML, ACE1, JuLIP 
 using NamedTupleTools: namedtuple
-using JuLIP: AtomicNumber, rnn 
+using JuLIP: AtomicNumber, rnn, z2i 
 using ACE1.Transforms: agnesi_transform, multitransform
+using ACE1.PairPotentials: PolyPairBasis
 using ACE1.OrthPolys: transformed_jacobi, transformed_jacobi_env
 
 # -------------- Bond-length heuristics 
@@ -41,11 +42,13 @@ const _kw_defaults = Dict(:elements => nothing,
                           :pure2b => true, 
                           :delete2b => true, 
                           #
-                          :pair_rcut => :pair, 
+                          :pair_rcut => :rcut, 
                           :pair_degree => :totaldegree,
-                          :pair_transform => (:agnesi, 1, 3), 
-                          :pair_basis => :legendre, 
+                          :pair_transform => (:agnesi, 2, 4), 
+                          :pair_basis => :legendre,  
+                          :pair_envelope => (:r, 2), 
                           # 
+                          :Eref => missing 
                           )
 
 const _kw_aliases = Dict( :N => :order, 
@@ -67,6 +70,11 @@ function _clean_args(kwargs)
          dargs[key] = _kw_defaults[key]
       end
    end
+
+   if dargs[:pair_rcut] == :rcut 
+      dargs[:pair_rcut] = kwargs[:rcut]
+   end 
+
    return namedtuple(dargs)
 end
 
@@ -110,8 +118,7 @@ function _get_all_r0(kwargs)
                    for s1 in elements, s2 in elements]... )
 end
 
-function _get_rcut(kwargs, s1, s2) 
-   _rcut = kwargs[:rcut]
+function _get_rcut(kwargs, s1, s2; _rcut = kwargs[:rcut])
    if _rcut isa Tuple 
       if _rcut[1] == :bondlen
          return _rcut[2] * get_r0(s1, s2)
@@ -124,19 +131,18 @@ function _get_rcut(kwargs, s1, s2)
    error("Unable to determine rcut($s1, $s2) from the arguments provided.")
 end
 
-function _get_all_rcut(kwargs) 
-   if kwargs[:rcut] isa Number 
-      return kwargs[:rcut]
+function _get_all_rcut(kwargs; _rcut = kwargs[:rcut]) 
+   if _rcut isa Number 
+      return _rcut
    end
    elements = kwargs[:elements]
-   rcut = Dict( [ (s1, s2) => _get_rcut(kwargs, s1, s2) 
+   rcut = Dict( [ (s1, s2) => _get_rcut(kwargs, s1, s2; _rcut = _rcut) 
                    for s1 in elements, s2 in elements]... )
    return rcut 
 end
 
-function _transform(kwargs)
+function _transform(kwargs; transform = kwargs[:transform])
    elements = kwargs[:elements]
-   transform = kwargs[:transform]
 
    if transform isa Tuple
       if transform[1] == :agnesi 
@@ -146,7 +152,7 @@ function _transform(kwargs)
          rcut = _get_all_rcut(kwargs)
          transforms = Dict([ (s1, s2) => agnesi_transform(r0[(s1, s2)], p, q)
                              for s1 in elements, s2 in elements]... )
-         trans_ace = multitransform(transforms; rin = 0.0, rcut = 8.0)
+         trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
          return trans_ace 
       end
    
@@ -161,7 +167,10 @@ end
 function _radial_basis(kwargs) 
    rbasis = kwargs[:rbasis]
 
-   if rbasis == :legendre 
+   if rbasis isa ACE1.ScalarBasis
+      return rbasis 
+
+   elseif rbasis == :legendre 
       Deg, maxn, maxl = _get_degrees(kwargs)      
       if kwargs[:pure2b] 
          cor_order = _get_order(kwargs)
@@ -179,10 +188,7 @@ function _radial_basis(kwargs)
       trans_ace = _transform(kwargs)
       Rn_basis = transformed_jacobi(maxn, trans_ace; pcut = pcut, pin = pin)
       return Rn_basis
-
-   elseif rbasis isa ACE1.ScalarBasis
-      return rbasis 
-   end
+   end 
 
    error("Unable to determine the radial basis from the arguments provided.")
 end
@@ -190,8 +196,61 @@ end
 
 
 
-function ace_basis(; kwargs...)
-   kwargs = _clean_args(kwargs)
+function _pair_basis(kwargs)
+   rbasis = kwargs[:pair_basis]
+   elements = kwargs[:elements]
+
+   if rbasis isa ACE1.ScalarBasis
+      return rbasis
+
+   elseif rbasis == :legendre 
+      if kwargs[:pair_degree] == :totaldegree 
+         Deg, maxn, maxl = _get_degrees(kwargs)       
+      elseif kwargs[:pair_degree] isa Integer 
+         maxn = kwargs[:pair_degree]
+      else
+         error("Cannot determine `maxn` for pair basis from information provided.")
+      end 
+
+      allrcut = _get_all_rcut(kwargs; _rcut = kwargs[:pair_rcut])
+      if allrcut isa Number 
+         allrcut = Dict([(s1, s2) => allrcut for s1 in elements, s2 in elements]...)
+      end
+
+      trans_pair = _transform(kwargs, transform = kwargs[:pair_transform])
+      _s2i(s) = z2i(trans_pair.zlist, AtomicNumber(s))
+      alltrans = Dict([(s1, s2) => trans_pair.transforms[_s2i(s1), _s2i(s2)].t 
+                       for s1 in elements, s2 in elements]...)
+
+      allr0 = _get_all_r0(kwargs)
+
+      function _r_basis(s1, s2, penv) 
+         _env = ACE1.PolyEnvelope(penv, allr0[(s1, s2)], allrcut[(s1, s2)] )
+         return transformed_jacobi_env(maxn, alltrans[(s1, s2)], _env, allrcut[(s1, s2)])
+      end
+      
+      _x_basis(s1, s2, pin, pcut)  = transformed_jacobi(maxn, alltrans[(s1, s2)], allrcut[(s1, s2)]; 
+                                             pcut = pcut, pin = pin)
+   
+      envelope = kwargs[:pair_envelope]
+      if envelope isa Tuple 
+         if envelope[1] == :x 
+            pin = envelope[2]
+            pcut = envelope[3]
+            rbases = [ _x_basis(s1, s2, pin, pcut) for s1 in elements, s2 in elements ]
+         elseif envelope[1] == :r  
+            penv = envelope[2]
+            rbases = [ _r_basis(s1, s2, penv) for s1 in elements, s2 in elements ]
+         end
+      end
+   end
+
+   return PolyPairBasis(rbases, elements)
+end
+
+
+
+function mb_ace_basis(kwargs)
    elements = kwargs[:elements]
    cor_order = _get_order(kwargs)
    Deg, maxn, maxdeg = _get_degrees(kwargs)
@@ -210,3 +269,11 @@ function ace_basis(; kwargs...)
 
    return rpibasis
 end
+
+function ace_basis(; kwargs...)
+   kwargs = _clean_args(kwargs)
+   rpiB = mb_ace_basis(kwargs) 
+   pairB = _pair_basis(kwargs)
+   return JuLIP.MLIPs.IPSuperBasis([pairB, rpiB]);
+end
+

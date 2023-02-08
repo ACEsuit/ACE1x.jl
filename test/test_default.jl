@@ -55,7 +55,7 @@ rpibasis = ACE1x.Pure2b.pure2b_basis(species = AtomicNumber.(elements),
 ## -------- Pair Basis 
 
 # the transform for the radial basis should be ok with (1, 4)
-ag_p_pair = 1; ag_q_pair = 3
+ag_p_pair = 2; ag_q_pair = 4
 function _r_basis(s1, s2) 
    _env = ACE1.PolyEnvelope(2, r0[(s1, s2)], r_cut_pair)
    _trans = agnesi_transform(r0[s1, s2], ag_p_pair, ag_q_pair) 
@@ -75,7 +75,7 @@ basis_length = length(B)
 kwargs = (elements = elements, 
           order = cor_order, 
           totaldegree = maxdeg, 
-          rcut = r_cut_ACE )
+          rcut = r_cut_ACE, )
 
 kwargs = ACE1x._clean_args(kwargs)
 
@@ -93,6 +93,12 @@ println_slim(@test _trans == trans_ace)
 _rbasis = ACE1x._radial_basis(kwargs)
 println_slim(@test _rbasis == Pr_ace)
 
-_rpibasis = ACE1x.ace_basis(; kwargs...)
+_rpibasis = ACE1x.mb_ace_basis(kwargs)
 println_slim(@test _rpibasis == rpibasis)
 
+_pairbasis = ACE1x._pair_basis(kwargs)
+println_slim(@test _pairbasis == pair)
+
+@info("consistency of final basis to manual construction")
+basis = ACE1x.ace_basis(; kwargs...)
+println_slim(@test basis == B)
