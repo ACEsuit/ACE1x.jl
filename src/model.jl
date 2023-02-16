@@ -4,6 +4,7 @@ export acemodel
 
 import JuLIP: energy, forces, virial, cutoff
 import ACE1.Utils: get_maxn
+using LinearAlgebra: Diagonal 
 
 _mean(x) = sum(x) / length(x)
 
@@ -88,7 +89,6 @@ function _set_params!(model, params)
 end
 
 
-using LinearAlgebra: Diagonal 
 
-smoothness_prior(model::ACE1Model; p = 2) = 
-      Diagonal(vcat(ACE1.scaling.(model.basis.BB, p)...))
+smoothness_prior(model::ACE1Model; kwargs...) = 
+      smoothness_prior(model.basis; kwargs...)

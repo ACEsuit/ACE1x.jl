@@ -6,6 +6,8 @@ using ACE1.Transforms: agnesi_transform, multitransform
 using ACE1.PairPotentials: PolyPairBasis
 using ACE1.OrthPolys: transformed_jacobi, transformed_jacobi_env
 
+export ace_basis, smoothness_prior
+
 # -------------- Bond-length heuristics 
 
 _lengthscales_path = joinpath(@__DIR__, "..", "data", 
@@ -277,3 +279,7 @@ function ace_basis(; kwargs...)
    return JuLIP.MLIPs.IPSuperBasis([pairB, rpiB]);
 end
 
+
+
+smoothness_prior(basis; p = 2) = 
+         Diagonal(1 .+ vcat(ACE1.scaling.(basis.BB, p)...))
