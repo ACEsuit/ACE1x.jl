@@ -4,4 +4,5 @@ using Test
 @testset "ACE1x.jl" begin
     @testset "pure2b" begin include("test_pure2b.jl"); end 
     @testset "pure2b-multi" begin include("test_pure2b_multi.jl"); end 
+    @testset "defaults" begin include("test_default.jl"); end
 end
