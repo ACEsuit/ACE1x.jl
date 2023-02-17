@@ -92,11 +92,24 @@ end
 function _get_degrees(kwargs) 
 
    if haskey(kwargs, :totaldegree)
-      if kwargs[:totaldegree] isa Union{Number, Dict} 
-         cor_order = _get_order(kwargs)
-         Deg, maxdeg = ACE1.Utils._auto_degrees(cor_order, kwargs[:totaldegree], 
+      deg = kwargs[:totaldegree]
+      cor_order = _get_order(kwargs)
+
+      # convert a vector of pairs to a dict [1 => 12, 2 => 10, ...]
+      if deg isa AbstractVector 
+         if deg[1] isa Pair 
+            deg = Dict(deg...)
+         end
+      end
+      # convert a Dict to basic Vector{Int} expexted by _autodegree
+      if deg isa Dict 
+         deg = [deg[i] for i in 1:cor_order]
+      end
+
+      if deg isa Union{AbstractVector{<: Number}, Number} 
+         Deg, maxdeg = ACE1.Utils._auto_degrees(cor_order, deg, 
                                                 kwargs[:wL], nothing)
-         maxn = maxdeg 
+         maxn = maximum(deg) 
          return Deg, maxdeg, maxn 
       end
    end 
@@ -173,7 +186,7 @@ function _radial_basis(kwargs)
       return rbasis 
 
    elseif rbasis == :legendre 
-      Deg, maxn, maxl = _get_degrees(kwargs)      
+      Deg, maxdeg, maxn = _get_degrees(kwargs)      
       if kwargs[:pure2b] 
          cor_order = _get_order(kwargs)
          envelope = kwargs[:envelope] 
@@ -207,7 +220,7 @@ function _pair_basis(kwargs)
 
    elseif rbasis == :legendre 
       if kwargs[:pair_degree] == :totaldegree 
-         Deg, maxn, maxl = _get_degrees(kwargs)       
+         Deg, maxdeg, maxn = _get_degrees(kwargs)       
       elseif kwargs[:pair_degree] isa Integer 
          maxn = kwargs[:pair_degree]
       else
@@ -255,7 +268,7 @@ end
 function mb_ace_basis(kwargs)
    elements = kwargs[:elements]
    cor_order = _get_order(kwargs)
-   Deg, maxn, maxdeg = _get_degrees(kwargs)
+   Deg, maxdeg, maxn = _get_degrees(kwargs)
    rbasis = _radial_basis(kwargs)
 
    if kwargs[:pure2b] 

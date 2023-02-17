@@ -104,7 +104,7 @@ function extended_rpibasis(species, Rn, D, maxdeg, order,
 
    # generate the new pi basis with the extended 2b contribution 
    @assert B1p isa BasicPSH1pBasis
-   spec1_x = filter( b -> (degree(D, b) <= maxdeg) || 
+   spec1_x = filter( b -> (degree(D, b, nothing) <= maxdeg) || 
                          (b.n <= maxn_x_total && b.l == 0), 
                      B1p.spec )
    B1p_x = BasicPSH1pBasis(Rn, B1p.zlist, spec1_x)
@@ -219,9 +219,8 @@ function pure2b_basis(; species = nothing, Rn = nothing,
                         D = nothing, maxdeg = nothing, order = nothing, 
                         constants = false, 
                         delete2b = false)
-
-   @assert D.chc == 0 
-   @assert D.csp == 1 
+   # @assert D.chc == 0 
+   # @assert D.csp == 1 
 
    # construct the extended PI Basis    
    pibasis_x = extended_rpibasis(species, Rn, D, maxdeg, order, 
