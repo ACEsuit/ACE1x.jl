@@ -13,7 +13,7 @@ using Polynomials4ML
 ##
 
 @info("Basic test of PIPotential construction and evaluation")
-maxdeg = 15
+maxdeg = 16
 order = 3
 r0 = 1.0
 rcut = 3.0
@@ -27,7 +27,7 @@ V = combine(basis, c)
 
 @show length(basis)
 
-Nat = 15
+Nat = 30
 Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
 
 ## 
@@ -89,8 +89,8 @@ val_new_red = ACE1.evaluate(V_new_red, Rs, Zs, z0)
 
 ##
 
-Nat = 50
-Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
+# Nat = 50
+# Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
 
 @info("compare evaluation of single site")
 print(" original: "); @btime ACE1.evaluate($V, $Rs, $Zs, $z0)
@@ -100,13 +100,17 @@ print("  new_red: "); @btime ACE1.evaluate($V_new_red, $Rs, $Zs, $z0)
 
 ##
 
-# @profview let V = V_new, Rs = Rs, Zs = Zs, z0 = z0
-#    for _ = 1:20_000 
-#       ACE1.evaluate(V, Rs, Zs, z0)
-#    end
-# end
+display(@benchmark ACE1.evaluate($V_new_red, $Rs, $Zs, $z0))
 
-# ##
+##
+
+@profview let V = V_new, Rs = Rs, Zs = Zs, z0 = z0
+   for _ = 1:20_000 
+      ACE1.evaluate(V, Rs, Zs, z0)
+   end
+end
+
+##
 
 # bA = V_new.bA
 # cY = randn(ComplexF64, 50, length(V_new.bY))
@@ -121,7 +125,7 @@ print("  new_red: "); @btime ACE1.evaluate($V_new_red, $Rs, $Zs, $z0)
 # @info("real evalpool")
 # @btime ACEcore.evalpool!($rA, $bA, ($Rn, $rY))
 
-# ##
+##
 
 # rbY = Polynomials4ML.RYlmBasis(5)
 # cbY = Polynomials4ML.CYlmBasis(5)
@@ -165,76 +169,76 @@ dEs2 = ACE1.evaluate_d!(dEs2, nothing, V_new, Rs, Zs, z0)
 
 ##
 
-Nat = length(Rs)
-Nbatch = 32
-Rs_ = [ deepcopy(Rs) for _=1:Nbatch ]
-Zs_ = [ deepcopy(Zs) for _=1:Nbatch ]
-z0_ = [ copy(z0) for _=1:Nbatch ]
-Rs_b = repeat(Rs, Nbatch)
-Zs_b = repeat(Zs, Nbatch)
-Z0s = fill(z0, Nbatch * Nat)
-I0s = vcat( [fill(i, Nat) for i = 1:Nbatch]... )
+# Nat = length(Rs)
+# Nbatch = 32
+# Rs_ = [ deepcopy(Rs) for _=1:Nbatch ]
+# Zs_ = [ deepcopy(Zs) for _=1:Nbatch ]
+# z0_ = [ copy(z0) for _=1:Nbatch ]
+# Rs_b = repeat(Rs, Nbatch)
+# Zs_b = repeat(Zs, Nbatch)
+# Z0s = fill(z0, Nbatch * Nat)
+# I0s = vcat( [fill(i, Nat) for i = 1:Nbatch]... )
 
-val = ACE1.evaluate(V_new, Rs, Zs, z0)
-vals = ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
+# val = ACE1.evaluate(V_new, Rs, Zs, z0)
+# vals = ACE1x.Evaluator.eval_batch!(nothing, V_new, Rs_b, Zs_b, Z0s, I0s)
 
-@show all(vals .≈ val)
-
-##
-
-print("  original potential: ")
-@btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
-print("         new kernels: ")
-@btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V_new, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
-print(" new kernels batched: ")
-@btime sum(ACE1x.Evaluator.eval_batch!(nothing, $V_new_red, $Rs_b, $Zs_b, $Z0s, $I0s))
-
+# @show all(vals .≈ val)
 
 ##
 
-@profview let V_new = V_new, Rs_b = Rs_b, Zs_b = Zs_b, Z0s = Z0s, I0s = I0s
-   for _ = 1:3000
-      ACE1x.Evaluator.eval_batch!(nothing, V_new_red, Rs_b, Zs_b, Z0s, I0s)
-   end
-end
+# print("  original potential: ")
+# @btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
+# print("         new kernels: ")
+# @btime begin; e = 0.0; for i=1:$Nbatch; e += ACE1.evaluate($V_new, $Rs_[i], $Zs_[i], $z0_[i]); end; e; end 
+# print(" new kernels batched: ")
+# @btime sum(ACE1x.Evaluator.eval_batch!(nothing, $V_new_red, $Rs_b, $Zs_b, $Z0s, $I0s))
+
 
 ##
 
-length(V_new.bA)
-length(V_new.bAA)
+# @profview let V_new = V_new, Rs_b = Rs_b, Zs_b = Zs_b, Z0s = Z0s, I0s = I0s
+#    for _ = 1:3000
+#       ACE1x.Evaluator.eval_batch!(nothing, V_new_red, Rs_b, Zs_b, Z0s, I0s)
+#    end
+# end
 
-A = randn(ComplexF64, Nbatch, length(V_new.bA))
-AA = zeros(ComplexF64, Nbatch, length(V_new.bAA))
-c = randn(size(AA, 2))
-vals = zeros(Nbatch)
+##
+
+# length(V_new.bA)
+# length(V_new.bAA)
+
+# A = randn(ComplexF64, Nbatch, length(V_new.bA))
+# AA = zeros(ComplexF64, Nbatch, length(V_new.bAA))
+# c = randn(size(AA, 2))
+# vals = zeros(Nbatch)
+
+# # @btime ACEcore.evaluate!($AA,$(V_new.bAA), $A)
+# # @btime ACEcore.evaluate_dot!($vals, $AA, $(V_new.bAA), $A, $c, real)
+
+# rAA = real.(AA)
+# rA = real.(A)
+
+# # @btime mul!($vals, $rAA, $c)
+# rAA1 = rAA[1,:]
+# # @btime dot($rAA1, $c)
 
 # @btime ACEcore.evaluate!($AA,$(V_new.bAA), $A)
-# @btime ACEcore.evaluate_dot!($vals, $AA, $(V_new.bAA), $A, $c, real)
+# @btime ACEcore.evaluate!($rAA,$(V_new.bAA), $rA)
 
-rAA = real.(AA)
-rA = real.(A)
-
-# @btime mul!($vals, $rAA, $c)
-rAA1 = rAA[1,:]
-# @btime dot($rAA1, $c)
-
-@btime ACEcore.evaluate!($AA,$(V_new.bAA), $A)
-@btime ACEcore.evaluate!($rAA,$(V_new.bAA), $rA)
-
-# ACEcore.evaluate!(AA,(V_new.bAA), A)
+# # ACEcore.evaluate!(AA,(V_new.bAA), A)
 
 ##
 
-@profview let AA=rAA, bAA = V_new.bAA,  A = rA
-   for _ = 1:6000
-      ACEcore.evaluate!(AA, bAA, A)
-   end
-end
+# @profview let AA=rAA, bAA = V_new.bAA,  A = rA
+#    for _ = 1:6000
+#       ACEcore.evaluate!(AA, bAA, A)
+#    end
+# end
 
 
 ##
 
-V_new
+# V_new
 
 
 ##
