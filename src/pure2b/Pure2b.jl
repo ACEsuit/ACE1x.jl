@@ -237,6 +237,10 @@ function pure2b_basis(; species = nothing, Rn = nothing,
    #      if delete2b == false then only the ones with too high degree.
    remove_2b!(rpibasis, delete2b, maxdeg)
 
+   # finally remove all zero-basis functions that we might have accidentally 
+   # created. 
+   rpibasis = ACE1.RPI.remove_zeros(rpibasis)
+
    return rpibasis
 end
 

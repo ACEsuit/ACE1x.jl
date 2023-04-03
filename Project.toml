@@ -1,7 +1,7 @@
 name = "ACE1x"
 uuid = "5cc4c08c-8782-4a30-af6d-550b302e9707"
 authors = ["Christoph Ortner <christohortner@gmail.com> and contributors"]
-version = "0.0.4"
+version = "0.0.5-DEV"
 
 [deps]
 ACE1 = "e3f9bc04-086e-409a-ba78-e9769fe067bb"
@@ -14,7 +14,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
-ACE1 = "0.11.2, 0.11"
+ACE1 = "0.11.6"
 julia = "1"
 
 [extras]
