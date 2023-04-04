@@ -187,19 +187,18 @@ function _radial_basis(kwargs)
 
    elseif rbasis == :legendre 
       Deg, maxdeg, maxn = _get_degrees(kwargs)      
-      if kwargs[:pure2b] 
-         cor_order = _get_order(kwargs)
-         envelope = kwargs[:envelope] 
-         if envelope isa Tuple 
-            if envelope[1] == :x 
-               pin = envelope[2]
-               pcut = envelope[3]
-               maxn += (pin + pcut) * (cor_order-1)
-            end
-         else 
-            error("I can't construct the radial basis automatically without knowing the envelope.")
+      cor_order = _get_order(kwargs)
+      envelope = kwargs[:envelope] 
+      if envelope isa Tuple && envelope[1] == :x 
+         pin = envelope[2]
+         pcut = envelope[3]
+         if kwargs[:pure2b]          
+            maxn += (pin + pcut) * (cor_order-1)
          end
-      end 
+      else 
+         error("I can't construct the radial basis automatically without knowing the envelope.")
+      end
+
       trans_ace = _transform(kwargs)
       Rn_basis = transformed_jacobi(maxn, trans_ace; pcut = pcut, pin = pin)
       return Rn_basis
@@ -279,7 +278,11 @@ function mb_ace_basis(kwargs)
                               order=cor_order, 
                               delete2b = kwargs[:delete2b])
    else
-      error("todo - implement standard ACE basis")
+      rpibasis = ACE1.ace_basis(species = AtomicNumber.(elements),
+                               rbasis=rbasis, 
+                               D=Deg,
+                               maxdeg=maxdeg, 
+                               N = cor_order, )
    end 
 
    return rpibasis
