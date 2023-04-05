@@ -74,7 +74,7 @@ function _clean_args(kwargs)
    end
 
    if dargs[:pair_rcut] == :rcut 
-      dargs[:pair_rcut] = kwargs[:rcut]
+      dargs[:pair_rcut] = dargs[:rcut]
    end 
 
    return namedtuple(dargs)
@@ -165,6 +165,7 @@ function _transform(kwargs; transform = kwargs[:transform])
          q = transform[3]
          r0 = _get_all_r0(kwargs)
          rcut = _get_all_rcut(kwargs)
+         rcut = maximum(values(rcut))  # multitransform wants a single cutoff. 
          transforms = Dict([ (s1, s2) => agnesi_transform(r0[(s1, s2)], p, q)
                              for s1 in elements, s2 in elements]... )
          trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
