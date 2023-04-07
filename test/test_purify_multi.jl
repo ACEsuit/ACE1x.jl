@@ -41,7 +41,7 @@ Pr = transformed_jacobi(maxn, trans; pcut = 2)
 ## === Define impure and pure basis ===
 ACE_B = ACE1.Utils.rpi_basis(species=species, rbasis = Pr, D=D, 
                              maxdeg=maxdeg, N=ord)
-pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = 0, elements = elements )
+pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = 0)
 
 # # get extended radial basis for testing
 # spec = ACE1.get_basis_spec(ACE_B.pibasis, 1)
@@ -77,7 +77,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     
     local ACE_B = ACE1.Utils.rpi_basis(species= species, rbasis=Pr, D=D, 
                                  maxdeg=maxdeg, N=ord)
-    local pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = remove, elements = elements )
+    local pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = remove)
 
     # @profview pureRPIBasis(ACE_B; species = species)    
     if ord == 2 && remove == 1
@@ -111,7 +111,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
                         cell = [5.0 0 0; 0 5.0 0; 0 0.0 5.0], 
                         pbc = false)
             B = energy(pure_rpibasis, at)
-            print_tf(@test( norm(B, Inf) < tol )) 
+            print_tf(@test( norm(B, Inf) < 1e-12 )) 
         end
         println()
     end

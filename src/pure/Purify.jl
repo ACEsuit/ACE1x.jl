@@ -9,10 +9,7 @@ using SparseArrays: sparse, spzeros, SparseVector
 using RepLieGroups.O3: ClebschGordan
 
 
-function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0, elements = [:X])
-
-
-   species = sort(elements, by = x -> AtomicNumber(x))
+function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
 
    corord = maximum(length.(get_nl(basis)))
    @assert corord >= 2
@@ -20,7 +17,8 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0, elements = [:X])
    pin, pcut = basis.pibasis.basis1p.J.J.pl, basis.pibasis.basis1p.J.J.pr
    ninc = (pin + pcut) * (corord - 1)
    zList = basis.pibasis.zlist.list
-   
+   species = sort([list.z for list in zList])
+
    # get the original C_sym for each atom
    C_sym_list = deepcopy(basis.A2Bmaps)
 
