@@ -100,4 +100,19 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     end
     println()
 
+    if ord == 2 && remove == 1
+        @info("Test energy of dimer = 0")
+        for ntest = 1:30 
+            z = rand(species)
+            z0 = rand(species)
+            r = ACE1.rand_radial(Pr, z, z0)
+            at = Atoms(X = [ JVecF(0, 0, 0), JVecF(r, 0, 0) ], 
+                        Z = [z, z0], 
+                        cell = [5.0 0 0; 0 5.0 0; 0 0.0 5.0], 
+                        pbc = false)
+            B = energy(pure_rpibasis, at)
+            print_tf(@test( norm(B, Inf) < tol )) 
+        end
+        println()
+    end
 end
