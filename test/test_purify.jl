@@ -9,7 +9,7 @@ using Test
 using Printf
 
 
-# === test configs ===
+## === test configs ===
 elements = [:X]
 species = [AtomicNumber(x) for x in elements]
 zX = species[1]
@@ -43,6 +43,7 @@ pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = 0)
 @info("check single species")
 Nat = 15
 for ntest = 1:30
+    local B 
     Rs, Zs, z0 = rand_nhd(Nat, Pr, elements)
     B = ACE1.evaluate(pure_rpibasis, Rs, Zs, z0)
     print_tf(@test(length(pure_rpibasis) == length(B)))
@@ -75,7 +76,7 @@ for Nat in 2:ord
     end
     AA_nb = AA[:, cut_list[Nat - 1] + 1:cut_list[Nat]]
     AA_ip_nb = AA_ip[:, cut_list[Nat - 1] + 1:cut_list[Nat]]
-    println("conditional number of grammian for ν = $Nat")
+    println("condition number of gramian for ν = $Nat")
     G_pure, G_impure = AA_nb' * AA_nb, AA_ip_nb' * AA_ip_nb
     println("pure basis :", cond(G_pure))
     println("impure basis :", cond(G_impure))
@@ -107,6 +108,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     end
 
     for ntest = 1:30
+        local B 
         z0 = rand(species)
 
         Zs = [rand(species) for _ = 1:ord - 1]
@@ -121,6 +123,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     if ord == 2 && remove == 1
         @info("Test energy of dimer = 0")
         for ntest = 1:30 
+            local B 
             z = rand(species)
             z0 = rand(species)
             r = ACE1.rand_radial(Pr, z, z0)

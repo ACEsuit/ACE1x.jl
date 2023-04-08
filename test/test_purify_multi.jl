@@ -55,6 +55,7 @@ pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = 0)
 @info("Basis construction and evaluation checks")
 Nat = 15
 for ntest = 1:30
+    local B 
     Rs, Zs, z0 = rand_nhd(Nat, Pr.J, elements)
     B = ACE1.evaluate(pure_rpibasis, Rs, Zs, z0)
     print_tf(@test(length(pure_rpibasis) == length(B)))
@@ -89,6 +90,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     end
 
     for ntest = 1:30
+        local B 
         z0 = rand(species)
 
         Zs = [rand(species) for _ = 1:ord - 1]
@@ -103,6 +105,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     if ord == 2 && remove == 1
         @info("Test energy of dimer = 0")
         for ntest = 1:30 
+            local B 
             z = rand(species)
             z0 = rand(species)
             r = ACE1.rand_radial(Pr, z, z0)
