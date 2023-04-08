@@ -143,7 +143,7 @@ function getNN2b(maxn, ninc, pin, pcut)
 
     # only product basis up to order = 2, use to get Pnn_all
     # NN2b = gensparse(; NU = 2, tup2b = tup2b, admissible = admissible, minvv = fill(0, 2), maxvv = fill(length(spec1p_poly), 2), ordered = true)
-    NN2b = gensparse(2; admissible = admissible, tup2b = tup2b, ordered = true)
+    NN2b = gensparse(2; admissible = admissible, tup2b = tup2b, ordered = true, maxν = length(spec1p_poly))
     NN2b = [ vv[vv .> 0] for vv in NN2b if !(isempty(vv[vv .> 0]))]
     return NN2b
 end

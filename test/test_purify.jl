@@ -137,3 +137,22 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
         println()
     end
 end
+
+
+@info("Check span")
+Nat = 15
+for i = 1:sam
+    local Rs, Zs, z0 = ACE1.rand_nhd(Nat, Pr, :X)
+    AA[i, :] = ACE1.evaluate(pure_rpibasis, Rs, Zs, z0)
+    AA_ip[i, :] = ACE1.evaluate(ACE_B, Rs, Zs, z0)
+end
+Q1_, R1_ = qr(AA)
+Q2_, R2_ = qr(AA_ip)
+Q1 = Matrix(Q1_)
+Q2 = Matrix(Q2_)
+R1 = Matrix(R1_)
+R2 = Matrix(R2_)
+@show rank(R1)
+@show rank(R2)
+@show norm(Q1 * (Q1' * AA_ip) - AA_ip)
+@show norm(Q2 * (Q2' * AA) - AA)
