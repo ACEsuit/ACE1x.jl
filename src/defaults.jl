@@ -36,13 +36,16 @@ const _kw_defaults = Dict(:elements => nothing,
                           :order => nothing, 
                           :totaldegree => nothing, 
                           :wL => 1.5, 
+                          # 
                           :r0 => :bondlen, 
                           :rcut => (:bondlen, 2.5),
                           :transform => (:agnesi, 2, 4),
                           :envelope => (:x, 2, 2),
                           :rbasis => :legendre, 
+                          # 
                           :pure2b => true, 
                           :delete2b => true, 
+                          :pure => false, 
                           #
                           :pair_rcut => :rcut, 
                           :pair_degree => :totaldegree,
@@ -56,9 +59,13 @@ const _kw_defaults = Dict(:elements => nothing,
 const _kw_aliases = Dict( :N => :order, 
                           :species => :elements, 
                           :trans => :transform, 
-                         )
+                        )
 
-function _clean_args(kwargs) 
+function model_defaults()
+   return deepcopy(_kw_defaults)
+end
+
+function _clean_args(kwargs)
    dargs = Dict{Symbol, Any}() 
    for key in keys(kwargs)
       if haskey(ACE1x._kw_aliases, key) 
@@ -271,6 +278,11 @@ function mb_ace_basis(kwargs)
    Deg, maxdeg, maxn = _get_degrees(kwargs)
    rbasis = _radial_basis(kwargs)
 
+   if kwargs[:pure2b] && kwargs[:pure] 
+      # error("Cannot use both `pure2b` and `pure` options.")
+      @info("Option `pure = true` overrides `pure2b=true`")
+   end
+
    if kwargs[:pure2b] 
       rpibasis = Pure2b.pure2b_basis(species = AtomicNumber.(elements),
                               Rn=rbasis, 
@@ -278,6 +290,13 @@ function mb_ace_basis(kwargs)
                               maxdeg=maxdeg, 
                               order=cor_order, 
                               delete2b = kwargs[:delete2b])
+   elseif kwargs[:pure]
+      dirtybasis = ACE1.ace_basis(species = AtomicNumber.(elements),
+                               rbasis=rbasis, 
+                               D=Deg,
+                               maxdeg=maxdeg, 
+                               N = cor_order, ) 
+      rpibasis = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = 0)
    else
       rpibasis = ACE1.ace_basis(species = AtomicNumber.(elements),
                                rbasis=rbasis, 

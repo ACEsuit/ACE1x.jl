@@ -119,3 +119,15 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
         println()
     end
 end
+
+## ------------- Testing the user interface 
+
+
+model = ACE1x.acemodel(; elements = [:Ti, :Al], 
+                         order = 3, 
+                         totaldegree = 8,
+                         pure = true,  )
+
+# TODO Jerry: check that this does the right thing? 
+pure_ace_basis = model.basis.BB[2]
+                
