@@ -277,14 +277,15 @@ function mb_ace_basis(kwargs)
    cor_order = _get_order(kwargs)
    Deg, maxdeg, maxn = _get_degrees(kwargs)
    rbasis = _radial_basis(kwargs)
+   pure2b = kwargs[:pure2b]
 
-   if kwargs[:pure2b] && kwargs[:pure] 
+   if pure2b && kwargs[:pure] 
       # error("Cannot use both `pure2b` and `pure` options.")
       @info("Option `pure = true` overrides `pure2b=true`")
-      kwargs[:pure2b] = false 
+      pure2b = false 
    end
 
-   if kwargs[:pure2b] 
+   if pure2b 
       rpibasis = Pure2b.pure2b_basis(species = AtomicNumber.(elements),
                               Rn=rbasis, 
                               D=Deg,
@@ -297,7 +298,8 @@ function mb_ace_basis(kwargs)
                                D=Deg,
                                maxdeg=maxdeg, 
                                N = cor_order, ) 
-      rpibasis = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = 0)
+      _rem = kwargs[:delete2b] ? 1 : 0 
+      rpibasis = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = _rem)
    else
       rpibasis = ACE1.ace_basis(species = AtomicNumber.(elements),
                                rbasis=rbasis, 
