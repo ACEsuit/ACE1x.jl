@@ -19,7 +19,7 @@ maxdeg = 8
 r0 = 2.8 
 rin = 0.5 * r0
 rcut = 5.5
-pcut = 2 
+pcut = 2
 pin = 2
 D = SparsePSHDegree()
 transforms = Dict(
@@ -58,7 +58,7 @@ for ntest = 1:30
     local B 
     Rs, Zs, z0 = rand_nhd(Nat, Pr.J, elements)
     B = ACE1.evaluate(pure_rpibasis, Rs, Zs, z0)
-    print_tf(@test(length(pure_rpibasis) == length(B)))
+    print_tf(@test(length(pure_rpibasis) == length(B) && norm(B) > 1e-7))
 end
 println()
 
@@ -109,7 +109,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
             z = rand(species)
             z0 = rand(species)
             r = ACE1.rand_radial(Pr, z, z0)
-            at = Atoms(X = [ JVecF(0, 0, 0), JVecF(r, 0, 0) ], 
+            local at = Atoms(X = [ JVecF(0, 0, 0), JVecF(r, 0, 0) ], 
                         Z = [z, z0], 
                         cell = [5.0 0 0; 0 5.0 0; 0 0.0 5.0], 
                         pbc = false)
@@ -119,15 +119,3 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
         println()
     end
 end
-
-## ------------- Testing the user interface 
-
-
-model = ACE1x.acemodel(; elements = [:Ti, :Al], 
-                         order = 3, 
-                         totaldegree = 8,
-                         pure = true,  )
-
-# TODO Jerry: check that this does the right thing? 
-pure_ace_basis = model.basis.BB[2]
-                
