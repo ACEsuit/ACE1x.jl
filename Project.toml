@@ -9,16 +9,19 @@ JuLIP = "945c410c-986d-556a-acb1-167a618e0462"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NamedTupleTools = "d9ec5142-1e00-5aa0-9d6a-321866360f50"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+RepLieGroups = "f07d36f2-91c4-427a-b67b-965fe5ebe1d2"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
-ACE1 = "0.11.6"
+ACE1 = "0.11.7"
 julia = "1"
+RepLieGroups = "0.0.1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [targets]
-test = ["Test"]
+test = ["Test", "Printf"]
