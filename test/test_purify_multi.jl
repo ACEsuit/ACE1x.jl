@@ -7,6 +7,7 @@ using LinearAlgebra
 using LinearAlgebra: qr, norm, Diagonal, I, cond
 using SparseArrays
 using JuLIP 
+using JuLIP: evaluate, evaluate_d, evaluate!, evaluate_d!
 using ACE1.Transforms: multitransform
 
 using Test
@@ -122,12 +123,35 @@ end
 
 ## ------------- Testing the user interface 
 
-
-model = ACE1x.acemodel(; elements = [:Ti, :Al], 
+species = [:Ti, :Al]
+model = ACE1x.acemodel(; elements = species, 
                          order = 3, 
                          totaldegree = 8,
                          pure = true,  )
 
 # TODO Jerry: check that this does the right thing? 
 pure_ace_basis = model.basis.BB[2]
-                
+
+# ------ START CO 
+c = randn(length(model.basis)) ./ (1:length(model.basis)).^2
+
+ACE1x._set_params!(model, c)
+
+Nat = 10 
+ZZ = AtomicNumber.(species)
+z0 = rand(ZZ)
+Zs = [rand(ZZ) for _ = 1:Nat]
+Pr = model.basis.BB[2].pibasis.basis1p.J
+Rs = [ ACE1.Random.rand_sphere() * (2.7 + 2 * rand()) for i = 1:Nat]
+
+tmp = JuLIP.alloc_temp(model.potential, Nat)
+evaluate(model.potential.components[1], Rs, Zs, z0)
+evaluate(model.potential.components[2], Rs, Zs, z0)
+evaluate_d(model.potential.components[1], Rs, Zs, z0)
+evaluate_d(model.potential.components[2], Rs, Zs, z0)
+
+at = bulk(:Al, cubic=true) * 3
+at.Z[:] .= rand(ZZ, length(at))
+energy(model.potential, at)
+forces(model.potential, at)
+# ------ END CO

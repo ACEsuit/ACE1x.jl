@@ -281,6 +281,7 @@ function mb_ace_basis(kwargs)
    if kwargs[:pure2b] && kwargs[:pure] 
       # error("Cannot use both `pure2b` and `pure` options.")
       @info("Option `pure = true` overrides `pure2b=true`")
+      kwargs[:pure2b] = false 
    end
 
    if kwargs[:pure2b] 
