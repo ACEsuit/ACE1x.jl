@@ -8,6 +8,7 @@ using ACE1x: getspeclenlist, spec2col, insertspect!
 using SparseArrays: sparse, spzeros, SparseVector
 using RepLieGroups.O3: ClebschGordan
 
+const NLMZ = ACE1.RPI.PSH1pBasisFcn
 
 function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
 
@@ -65,7 +66,6 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    spec1p_x_core = [(z, i, y) for z in [list.z for list in zList] for i = 1:(maxn + ninc) for y = 1:Ydim]
    spec1p_x = ACE1x.getACE1Spec1p_multi(spec1p_x_core)
 
-   # basis in b1p_x does not depends on z, but it still requires a zList to construct to give each basis a z index
    # TODO: make this construction minimal
    b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, spec1p_x)
    
@@ -100,8 +100,10 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
       
       # get the projection map
       inv_spec_x = Dict([ key => idx for (idx, key) in enumerate(spec_x) ]...)
-      # inv_spec_x[spec_x[23]]
-      # inv_spec_x[spec[20]]
+      # examples for using the inv_spec_x just for my own note...
+      # eg. inv_spec_x[spec_x[23]]
+      #     inv_spec_x[spec[20]]
+
       P = spzeros(length(spec), length(spec_x))
       for i in eachindex(spec)
           P[i, inv_spec_x[spec[i]]] = 1.0
@@ -110,8 +112,36 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
       newA2Bmap = C_sym_list[i] * P * C_pure
       push!(newA2Bmap_list, newA2Bmap)
    end
-   pibasis_x = ACE1.pibasis_from_specs(b1p_x, Tuple(spec_x_list))
-   return RPIBasis(pibasis_x, Tuple(newA2Bmap_list), basis.Bz0inds)
+
+   # construct new b1p_x from spec_x_list to create a minimal amount of spec1p, this part should be independent of the transformation 
+   # since the transformation is only applied on the AA matrix
+
+   # try unsorted first, if needed sort later
+   thin_spec1p_x = Vector{ACE1.RPI.PSH1pBasisFcn}()
+
+   # for each atom, we extract the 1p basis
+   for _spec in spec_x_list
+      for bb in _spec 
+         for b in bb.oneps
+            new_b = NLMZ(b.n, b.l, b.m, 0)
+            push!(thin_spec1p_x, new_b)
+         end
+      end
+   end
+   sort!(thin_spec1p_x, lt = (x, y) -> (x.z < y.z) || (x.z == y.z && x.n < y.n) || (x.z == y.z && x.n == y.n && x.l < y.l) || (x.z == y.z && x.n == y.n && x.l == y.l && x.m < y.m))
+   unique!(thin_spec1p_x)
+
+   # create new b1p_x basis
+   new_b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, thin_spec1p_x)
+   
+   # get pibasis from spec
+   pibasis_x = ACE1.pibasis_from_specs(new_b1p_x, Tuple(spec_x_list))
+
+   # symmetrize it
+   pure_rpibasis = RPIBasis(pibasis_x, Tuple(newA2Bmap_list), basis.Bz0inds)
+
+   # delete zero basis functions
+   return ACE1.RPI.remove_zeros(pure_rpibasis)
 end
 
 
