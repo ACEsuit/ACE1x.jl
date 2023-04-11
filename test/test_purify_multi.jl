@@ -96,7 +96,6 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
 
         Zs = [rand(species) for _ = 1:ord - 1]
         rL = [ACE1.rand_radial(Pr, Zs[i], z0) for i = 1:ord - 1]
-        
         Rs = [ JVecF(rL[i], 0, 0) for i = 1:ord - 1 ]
         B = ACE1.evaluate(pure_rpibasis, Rs, Zs, z0)
         print_tf(@test( norm(B, Inf) < 1e-12 ))
@@ -127,10 +126,44 @@ species = [:Ti, :Al]
 model = ACE1x.acemodel(; elements = species, 
                          order = 3, 
                          totaldegree = 8,
-                         pure = true,  )
+                         pure = true,  
+                         ) # default delete2b = true
 
-# TODO Jerry: check that this does the right thing? 
 pure_ace_basis = model.basis.BB[2]
+
+
+Deg, maxdeg = ACE1.Utils._auto_degrees(3, 8, 1.5, nothing)
+maxn = maximum(maxdeg)
+
+dirtybasis = ACE1.ace_basis(species = AtomicNumber.(species), rbasis=pure_ace_basis.pibasis.basis1p.J, maxdeg= maxdeg, D = Deg, N = 3, )
+sd_pure = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = 1)
+
+##
+
+@info("Evaluation check")
+Pr = model.basis.BB[2].pibasis.basis1p.J
+Nat = 15
+
+for ntest = 1:30  
+    local Rs, Zs, z0 = rand_nhd(Nat, Pr.J, species)
+    print_tf(@test(ACE1.evaluate(pure_ace_basis, Rs, Zs, z0) ≈
+                   ACE1.evaluate(sd_pure, Rs, Zs, z0)))
+end
+println()
+
+NL = ACE1.get_nl(pure_ace_basis)
+
+@info("simple check on it is actually purified, we check basis of ord = 3 are zero")
+for ntest = 1:30
+    local B 
+    z0 = rand(AtomicNumber.(species))
+    Zs = [rand(AtomicNumber.(species)) for _ = 1:2]
+    rL = [ACE1.rand_radial(Pr.J) for i = 1:ord - 1]
+    Rs = [ JVecF(rL[i], 0, 0) for i = 1:2]
+    B = ACE1.evaluate(pure_ace_basis, Rs, Zs, z0)
+    print_tf(@test( norm(B[length.(NL) .== 3], Inf) < 1e-12 ))
+end
+println()
 
 # ------ START CO 
 c = randn(length(model.basis)) ./ (1:length(model.basis)).^2
