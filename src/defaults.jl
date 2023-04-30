@@ -320,5 +320,14 @@ end
 
 
 
-smoothness_prior(basis; p = 2) = 
-         Diagonal(1 .+ vcat(ACE1.scaling.(basis.BB, p)...))
+function smoothness_prior(basis; p = 2, wL = 1.0)
+   d = Float64[] 
+   for B in basis.BB 
+      if B isa ACE1.RPI.RPIBasis
+         append!(d, ACE1.scaling(B, p, wL))
+      else
+         append!(d, ACE1.scaling(B, p))
+      end
+   end
+   return Diagonal(1 .+ d)
+end
