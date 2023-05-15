@@ -184,9 +184,6 @@ function _transform(kwargs; transform = kwargs[:transform])
    elseif transform isa ACE1.Transforms.DistanceTransform
       rcut = _get_all_rcut(kwargs)
       rcut = maximum(values(rcut))  # multitransform wants a single cutoff.
-      #transforms = Dict([ (s1, s2) => IdTransform()
-      #                       for s1 in elements, s2 in elements]... )
-      #transform seems to work
       transforms = Dict([ (s1, s2) => transform
                              for s1 in elements, s2 in elements]... )
       trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
