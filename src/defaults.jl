@@ -330,6 +330,13 @@ function ace_basis(; kwargs...)
 end
 
 
+# ---------------------------------------------------------------
+#  Smoothness priors 
+
+export algebraic_smoothness_prior, 
+       gaussian_smoothness_prior, 
+       exp_smoothness_prior
+
 
 function smoothness_prior(basis; p = 2, wL = 1.0)
    d = Float64[]
@@ -341,4 +348,46 @@ function smoothness_prior(basis; p = 2, wL = 1.0)
       end
    end
    return Diagonal(1 .+ d)
+end
+
+
+
+algebraic_smoothness_prior(basis; kwargs...) = 
+      smoothness_prior(basis; kwargs...)
+
+
+_get_nnll(basis::ACE1.RPI.RPIBasis) = 
+      ACE1.get_nl(basis)
+
+_get_nnll(basis::ACE1.PolyPairBasis) = 
+      [ [(n = n, l = 0),] for n in ACE1.scaling(basis, 1) ]
+
+_get_nnll(basis) = 
+      vcat( _get_nnll.(basis.BB)... )
+
+
+
+function gaussian_smoothness_prior(basis; σl = 2.0, σn = 2.0)
+   function _reg(bb)
+      # careful, there can be zero-basis functions, this is a bug to be fixed still
+      if length(bb) == 0; return 1.0; end
+      nn = [ b.n for b in bb]
+      ll = [ b.l for b in bb]
+      return exp(σl * sum(ll.^2) + σn * sum(nn.^2))
+   end
+
+   return Diagonal(_reg.(_get_nnll(basis)))
+end
+
+
+function exp_smoothness_prior(basis; al = 1.0, an = 1.0) 
+   function _reg(bb)
+      # careful, there can be zero-basis functions, this is a bug to be fixed still
+      if length(bb) == 0; return 1.0; end
+      nn = [ b.n for b in bb]
+      ll = [ b.l for b in bb]
+      return exp(al * sum(ll) + an * sum(nn.^2))
+   end
+
+   return Diagonal(_reg.(_get_nnll(basis)))
 end
