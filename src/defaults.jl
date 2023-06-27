@@ -386,7 +386,7 @@ function exp_smoothness_prior(basis; al = 1.0, an = 1.0)
       if length(bb) == 0; return 1.0; end
       nn = [ b.n for b in bb]
       ll = [ b.l for b in bb]
-      return exp(al * sum(ll) + an * sum(nn.^2))
+      return exp(al * sum(ll) + an * sum(nn))
    end
 
    return Diagonal(_reg.(_get_nnll(basis)))
