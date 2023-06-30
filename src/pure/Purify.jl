@@ -240,7 +240,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
    pure_spec = deepcopy(spec)
 
    S = length(spec)
-   C = spzeros(10 * S, 10 * S) # transformation matrix, init large enough for additional basis evaluation
+   C = spzeros(5 * S, 5 * S) # transformation matrix, init large enough for additional basis evaluation
 
 
    # from here no more extra pure basis should be inserted into the spec
@@ -302,7 +302,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
    end
 
    # assert that it does not go over the bound of initialized C
-   @assert 10 * length(old_spec) > length(spec)
+   @assert 5 * length(old_spec) > length(spec)
 
    # create an ordered spec
    spec_x_order = deepcopy(pure_spec)
