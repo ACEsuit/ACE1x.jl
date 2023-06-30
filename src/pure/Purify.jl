@@ -110,38 +110,49 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
       end
       # construct newA2Bmap, C_pure : impure_x -> pure_x, P: pure_x -> pure, C_sym: pure -> pure_sym
       newA2Bmap = C_sym_list[i] * P * C_pure
+      # newA2Bmap = P * C_pure
       push!(newA2Bmap_list, newA2Bmap)
    end
 
+
+   # TODO: remove this comment block after making sure everything works fine
+   # === 
    # construct new b1p_x from spec_x_list to create a minimal amount of spec1p, this part should be independent of the transformation 
    # since the transformation is only applied on the AA matrix
 
    # try unsorted first, if needed sort later
-   thin_spec1p_x = Vector{ACE1.RPI.PSH1pBasisFcn}()
+   # thin_spec1p_x = Vector{ACE1.RPI.PSH1pBasisFcn}()
 
    # for each atom, we extract the 1p basis
-   for _spec in spec_x_list
-      for bb in _spec 
-         for b in bb.oneps
-            new_b = NLMZ(b.n, b.l, b.m, 0)
-            push!(thin_spec1p_x, new_b)
-         end
-      end
-   end
-   sort!(thin_spec1p_x, lt = (x, y) -> (x.z < y.z) || (x.z == y.z && x.n < y.n) || (x.z == y.z && x.n == y.n && x.l < y.l) || (x.z == y.z && x.n == y.n && x.l == y.l && x.m < y.m))
-   unique!(thin_spec1p_x)
+   # for _spec in spec_x_list
+   #    for bb in _spec 
+   #       for b in bb.oneps
+   #          new_b = NLMZ(b.n, b.l, b.m, 0)
+   #          push!(thin_spec1p_x, new_b)
+   #       end
+   #    end
+   # end
+   # sort!(thin_spec1p_x, lt = (x, y) -> (x.z < y.z) || (x.z == y.z && x.n < y.n) || (x.z == y.z && x.n == y.n && x.l < y.l) || (x.z == y.z && x.n == y.n && x.l == y.l && x.m < y.m))
+   # unique!(thin_spec1p_x)
 
    # create new b1p_x basis
-   new_b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, thin_spec1p_x)
+   # new_b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, spec1p_x)
    
+   # === end of comment block
+
    # get pibasis from spec
-   pibasis_x = ACE1.pibasis_from_specs(new_b1p_x, Tuple(spec_x_list))
+   pibasis_x = ACE1.pibasis_from_specs(b1p_x, Tuple(spec_x_list))
 
    # symmetrize it
    pure_rpibasis = RPIBasis(pibasis_x, Tuple(newA2Bmap_list), basis.Bz0inds)
 
    # delete zero basis functions
-   return ACE1.RPI.remove_zeros(pure_rpibasis)
+   pure_rpibasis = ACE1.RPI.remove_zeros(pure_rpibasis)
+
+   # and finally clean up
+   pure_rpibasis = ACE1._cleanup(pure_rpibasis)
+
+   return pure_rpibasis
 end
 
 
@@ -230,7 +241,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all, Pnn_all, spec_core, spe
    pure_spec = deepcopy(spec)
 
    S = length(spec)
-   C = spzeros(5 * S, 5 * S) # transformation matrix, init large enough for additional basis evaluation
+   C = spzeros(10 * S, 10 * S) # transformation matrix, init large enough for additional basis evaluation
 
 
    # from here no more extra pure basis should be inserted into the spec
@@ -292,7 +303,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all, Pnn_all, spec_core, spe
    end
 
    # assert that it does not go over the bound of initialized C
-   @assert 5 * length(old_spec) > length(spec)
+   @assert 10 * length(old_spec) > length(spec)
 
    # create an ordered spec
    spec_x_order = deepcopy(pure_spec)
