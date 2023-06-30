@@ -170,8 +170,7 @@ Return: spec_x_order :: Vector{Vector{Int}}, extended specification in ACEcore s
 Return: pure_spec :: Vector{Vector{Int}}, pure basis that has to be evaluated
 
 """
-function generalImpure2PureMap3D_env_test_multi(Cnn_all, Pnn_all, spec_core, spec1p, Remove)
-
+function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{Int}}, spec1p::Vector{Tuple{Int16, Int, Int}}, Remove::Integer)
 
    old_spec = deepcopy(spec_core)
    spec = deepcopy(spec_core)
@@ -343,7 +342,7 @@ param: spec1p :: Vector{Tuple{Int}}}, specification of 1 particle basis
 param: spec3b :: Vector{Tuple{Int}}}, specification of 3 body basis
 
 """
-function getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+function getCnn_all_multi!(Cnn_all::Dict, Pnn_all::Dict, spec1p, spec3b)
    # Cnn_all = Dict{Vector{Int64}, SparseVector{Float64, Int64}}()
    cg = ClebschGordan()
    for nlm in spec3b

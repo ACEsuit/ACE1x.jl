@@ -39,10 +39,10 @@ function getACEcoreSpec_1px_multi(rpiB, spec1p_x_core, zList)
 
     old_pibasis = rpiB.pibasis
     old_spec_list = [ACE1.get_basis_spec(old_pibasis, i) for i in eachindex(zList)]
-    ac_spec_list = []
+    ac_spec_list = Vector{Vector{Vector{Int64}}}()
     last_zL = 0
     for i in eachindex(zList)
-        ac_spec = []
+        ac_spec = Vector{Vector{Int64}}()
         old_spec = old_spec_list[i]
         for t in old_spec
             push!(ac_spec, sort([spec2col((znlm.z, znlm.n, index_y(znlm.l, znlm.m)), spec1p_x_core) for znlm in t.oneps]))
@@ -216,7 +216,7 @@ end
 """
 Return spec_len_list, which is an array with array[i] being number of basis of i th order
 """
-function getspeclenlist(spec)
+function getspeclenlist(spec::Vector{Vector{Int}})
    max_ord = maximum(length.(spec))
    spec_len_list = zeros(Int64, max_ord)
    for t in spec
