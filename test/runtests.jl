@@ -7,4 +7,5 @@ using Test
     @testset "defaults" begin include("test_default.jl"); end
     @testset "Purify-single" begin include("test_purify.jl"); end
     @testset "Purify-multi" begin include("test_purify_multi.jl"); end
+    @testset "acemodel" begin include("test_acemodel.jl"); end
 end

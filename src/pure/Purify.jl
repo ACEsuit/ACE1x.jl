@@ -50,9 +50,9 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    Rn = basis.pibasis.basis1p.J
 
    if Rn.trans isa PolyTransform
-      Rn_x = ACE1.OrthPolys.transformed_jacobi(maxn+ninc, Rn.trans, Rn.ru, Rn.rl; pcut = pin, pin = pcut)
+      Rn_x = ACE1.OrthPolys.transformed_jacobi(maxn+ninc, Rn.trans, Rn.ru, Rn.rl; pcut = pcut, pin = pin)
    elseif Rn.trans isa Transforms.MultiTransform
-      Rn_x = ACE1.transformed_jacobi(maxn+ninc, Rn.trans)
+      Rn_x = ACE1.transformed_jacobi(maxn+ninc, Rn.trans; pin = pin, pcut = pcut)
    else
       @error("Please make sure Rn.trans is a MultiTransform or PolyTransform")
    end

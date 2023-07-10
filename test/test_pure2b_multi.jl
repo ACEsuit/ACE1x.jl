@@ -31,7 +31,7 @@ trans = multitransform(transforms; rin = 0.0, rcut = 6.0)
 
 ninc = (pcut + pin) * (ord-1)
 maxn = maxdeg + ninc 
-Pr = transformed_jacobi(maxn, trans; pcut = 2)
+Pr = transformed_jacobi(maxn, trans; pcut = 2, pin = 2)
 species = [ zTi, zAl ]
 
 ##
@@ -101,3 +101,4 @@ for ntest = 1:30
                    evaluate(rpibasis, Rs1, Zs1, z0) ))
 end
 println() 
+
