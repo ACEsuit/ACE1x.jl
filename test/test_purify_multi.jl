@@ -1,4 +1,4 @@
-using ACE1x, ACE1, Test 
+using ACE1x, ACE1 
 
 using ACE1: PolyTransform, transformed_jacobi, SparsePSHDegree, BasicPSH1pBasis, evaluate, rand_radial, rand_nhd
 using ACE1.Random: rand_vec
@@ -27,7 +27,7 @@ transforms = Dict(
    [ (s1, s2) => PolyTransform(2, (rnn(s1)+rnn(s2))/2)
      for (s1, s2) in [(:Ti, :Ti), (:Ti, :Al), (:Al, :Al) ]] ...)
 
-trans = multitransform(transforms; rin = 0.0, rcut = 6.0)
+trans = multitransform(transforms; rin = 0.1, rcut = 6.0)
 
 ninc = (pcut + pin) * (ord-1)
 maxn = maxdeg + ninc 
@@ -35,7 +35,7 @@ maxn = maxdeg + ninc
 elements = [:Ti, :Al]
 species = [AtomicNumber(x) for x in elements]
 zX = species[1]
-Pr = transformed_jacobi(maxn, trans; pcut = 2)
+Pr = transformed_jacobi(maxn, trans; pcut = 2, pin = 2)
 
 ##
 
@@ -56,7 +56,7 @@ pure_rpibasis = ACE1x.Purify.pureRPIBasis(ACE_B; remove = 0)
 @info("Basis construction and evaluation checks")
 Nat = 15
 for ntest = 1:30
-    local B 
+    local B, Rs, Zs, z0
     Rs, Zs, z0 = rand_nhd(Nat, Pr.J, elements)
     B = ACE1.evaluate(pure_rpibasis, Rs, Zs, z0)
     print_tf(@test(length(pure_rpibasis) == length(B) && norm(B) > 1e-7))
@@ -66,6 +66,7 @@ println()
 
 @info("isometry and permutation invariance")
 for ntest = 1:30
+    local Rs, Zs, z0
     Rs, Zs, z0 = rand_nhd(Nat, Pr.J, elements)
     Rsp, Zsp = ACE1.rand_sym(Rs, Zs)
     print_tf(@test(ACE1.evaluate(pure_rpibasis, Rs, Zs, z0) ≈
@@ -91,9 +92,8 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     end
 
     for ntest = 1:30
-        local B 
+        local B, z0, Zs, rL, Rs
         z0 = rand(species)
-
         Zs = [rand(species) for _ = 1:ord - 1]
         rL = [ACE1.rand_radial(Pr, Zs[i], z0) for i = 1:ord - 1]
         Rs = [ JVecF(rL[i], 0, 0) for i = 1:ord - 1 ]
@@ -105,7 +105,7 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     if ord == 2 && remove == 1
         @info("Test energy of dimer = 0")
         for ntest = 1:30 
-            local B 
+            local B, z0
             z = rand(species)
             z0 = rand(species)
             r = ACE1.rand_radial(Pr, z, z0)
@@ -120,8 +120,38 @@ for (ord, remove) in zip([2, 3, 4], [1, 2, 3])
     end
 end
 
-## ------------- Testing the user interface 
 
+Nat = 15
+@info("Check consistency with pure2b")
+for (del2b, idel2b) in [(true, 1), (false, 0)]
+    @info("check when delete2b = $del2b")
+    local ACE_B_2, pure_rpibasis_2, pure2b
+    ACE_B_2 = ACE1.Utils.rpi_basis(species=species, rbasis = Pr, D=D, 
+                                maxdeg=maxdeg, N=2)
+    pure_rpibasis_2 = ACE1x.Purify.pureRPIBasis(ACE_B_2; remove = idel2b)
+
+    pure2b = ACE1x.Pure2b.pure2b_basis(species = species, 
+                                        Rn=Pr, 
+                                        D=D, 
+                                        maxdeg=maxdeg, 
+                                        order=2, 
+                                        delete2b = del2b)
+    
+    @assert pure_rpibasis_2.A2Bmaps[1] ≈ pure2b.A2Bmaps[1]
+    @assert ACE1.get_nl(pure_rpibasis_2) == ACE1.get_nl(pure2b)
+
+    for ntest = 1:30
+        local B1, B2, Rs, Zs, z0
+        Rs, Zs, z0 = rand_nhd(Nat, Pr.J, elements)
+        B1 = ACE1.evaluate(pure_rpibasis_2, Rs, Zs, z0)
+        B2 = ACE1.evaluate(pure2b, Rs, Zs, z0)
+        print_tf(@test B1 ≈ B2)
+    end
+    println()
+end
+
+
+@info("Testing construction of user interface is as expected")
 species = [:Ti, :Al]
 model = ACE1x.acemodel(; elements = species, 
                          order = 3, 
@@ -155,7 +185,7 @@ NL = ACE1.get_nl(pure_ace_basis)
 
 @info("simple check on it is actually purified, we check basis of ord = 3 are zero")
 for ntest = 1:30
-    local B 
+    local B, z0, Zs, Rs
     z0 = rand(AtomicNumber.(species))
     Zs = [rand(AtomicNumber.(species)) for _ = 1:2]
     rL = [ACE1.rand_radial(Pr.J) for i = 1:ord - 1]

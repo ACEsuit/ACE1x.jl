@@ -50,9 +50,9 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    Rn = basis.pibasis.basis1p.J
 
    if Rn.trans isa PolyTransform
-      Rn_x = ACE1.OrthPolys.transformed_jacobi(maxn+ninc, Rn.trans, Rn.ru, Rn.rl; pcut = pin, pin = pcut)
+      Rn_x = ACE1.OrthPolys.transformed_jacobi(maxn+ninc, Rn.trans, Rn.ru, Rn.rl; pcut = pcut, pin = pin)
    elseif Rn.trans isa Transforms.MultiTransform
-      Rn_x = ACE1.transformed_jacobi(maxn+ninc, Rn.trans)
+      Rn_x = ACE1.transformed_jacobi(maxn+ninc, Rn.trans; pin = pin, pcut = pcut)
    else
       @error("Please make sure Rn.trans is a MultiTransform or PolyTransform")
    end
@@ -110,38 +110,49 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
       end
       # construct newA2Bmap, C_pure : impure_x -> pure_x, P: pure_x -> pure, C_sym: pure -> pure_sym
       newA2Bmap = C_sym_list[i] * P * C_pure
+      # newA2Bmap = P * C_pure
       push!(newA2Bmap_list, newA2Bmap)
    end
 
+
+   # TODO: remove this comment block after making sure everything works fine
+   # === 
    # construct new b1p_x from spec_x_list to create a minimal amount of spec1p, this part should be independent of the transformation 
    # since the transformation is only applied on the AA matrix
 
    # try unsorted first, if needed sort later
-   thin_spec1p_x = Vector{ACE1.RPI.PSH1pBasisFcn}()
+   # thin_spec1p_x = Vector{ACE1.RPI.PSH1pBasisFcn}()
 
    # for each atom, we extract the 1p basis
-   for _spec in spec_x_list
-      for bb in _spec 
-         for b in bb.oneps
-            new_b = NLMZ(b.n, b.l, b.m, 0)
-            push!(thin_spec1p_x, new_b)
-         end
-      end
-   end
-   sort!(thin_spec1p_x, lt = (x, y) -> (x.z < y.z) || (x.z == y.z && x.n < y.n) || (x.z == y.z && x.n == y.n && x.l < y.l) || (x.z == y.z && x.n == y.n && x.l == y.l && x.m < y.m))
-   unique!(thin_spec1p_x)
+   # for _spec in spec_x_list
+   #    for bb in _spec 
+   #       for b in bb.oneps
+   #          new_b = NLMZ(b.n, b.l, b.m, 0)
+   #          push!(thin_spec1p_x, new_b)
+   #       end
+   #    end
+   # end
+   # sort!(thin_spec1p_x, lt = (x, y) -> (x.z < y.z) || (x.z == y.z && x.n < y.n) || (x.z == y.z && x.n == y.n && x.l < y.l) || (x.z == y.z && x.n == y.n && x.l == y.l && x.m < y.m))
+   # unique!(thin_spec1p_x)
 
    # create new b1p_x basis
-   new_b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, thin_spec1p_x)
+   # new_b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, spec1p_x)
    
+   # === end of comment block
+
    # get pibasis from spec
-   pibasis_x = ACE1.pibasis_from_specs(new_b1p_x, Tuple(spec_x_list))
+   pibasis_x = ACE1.pibasis_from_specs(b1p_x, Tuple(spec_x_list))
 
    # symmetrize it
    pure_rpibasis = RPIBasis(pibasis_x, Tuple(newA2Bmap_list), basis.Bz0inds)
 
    # delete zero basis functions
-   return ACE1.RPI.remove_zeros(pure_rpibasis)
+   pure_rpibasis = ACE1.RPI.remove_zeros(pure_rpibasis)
+
+   # and finally clean up
+   pure_rpibasis = ACE1._cleanup(pure_rpibasis)
+
+   return pure_rpibasis
 end
 
 
@@ -159,8 +170,7 @@ Return: spec_x_order :: Vector{Vector{Int}}, extended specification in ACEcore s
 Return: pure_spec :: Vector{Vector{Int}}, pure basis that has to be evaluated
 
 """
-function generalImpure2PureMap3D_env_test_multi(Cnn_all, Pnn_all, spec_core, spec1p, Remove)
-
+function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{Int}}, spec1p::Vector{Tuple{Int16, Int, Int}}, Remove::Integer)
 
    old_spec = deepcopy(spec_core)
    spec = deepcopy(spec_core)
@@ -332,7 +342,7 @@ param: spec1p :: Vector{Tuple{Int}}}, specification of 1 particle basis
 param: spec3b :: Vector{Tuple{Int}}}, specification of 3 body basis
 
 """
-function getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+function getCnn_all_multi!(Cnn_all::Dict, Pnn_all::Dict, spec1p, spec3b)
    # Cnn_all = Dict{Vector{Int64}, SparseVector{Float64, Int64}}()
    cg = ClebschGordan()
    for nlm in spec3b

@@ -207,7 +207,7 @@ function _radial_basis(kwargs)
       if envelope isa Tuple && envelope[1] == :x
          pin = envelope[2]
          pcut = envelope[3]
-         if kwargs[:pure2b]
+         if (kwargs[:pure2b] || kwargs[:pure])
             maxn += (pin + pcut) * (cor_order-1)
          end
       else
