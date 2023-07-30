@@ -2,11 +2,12 @@
 import YAML, ACE1, JuLIP
 using NamedTupleTools: namedtuple
 using JuLIP: AtomicNumber, rnn, z2i
-using ACE1.Transforms: agnesi_transform, multitransform
+using ACE1.Transforms: agnesi_transform, multitransform, 
+                       normalized_agnesi_transform
 using ACE1.PairPotentials: PolyPairBasis
 using ACE1.OrthPolys: transformed_jacobi, transformed_jacobi_env
 
-export ace_basis, smoothness_prior
+export ace_basis, smoothness_prior, ace_defaults 
 
 # -------------- Bond-length heuristics
 
@@ -31,6 +32,8 @@ get_r0(z1, z2) = (get_bond_len(z1) + get_bond_len(z2)) / 2
 
 
 # -------------- ACE basis with good defaults
+
+ace_defaults() = deepcopy(_kw_defaults)
 
 const _kw_defaults = Dict(:elements => nothing,
                           :order => nothing,
@@ -175,10 +178,25 @@ function _transform(kwargs; transform = kwargs[:transform])
          r0 = _get_all_r0(kwargs)
          rcut = _get_all_rcut(kwargs)
          rcut = maximum(values(rcut))  # multitransform wants a single cutoff.
-         transforms = Dict([ (s1, s2) => agnesi_transform(r0[(s1, s2)], p, q)
-                             for s1 in elements, s2 in elements]... )
-         trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
-         return trans_ace
+
+         if ( (length(transform) == 3) || 
+              (length(transform) == 4 && transform[end] == :free) )
+            transforms = Dict([ (s1, s2) => agnesi_transform(r0[(s1, s2)], p, q)
+                              for s1 in elements, s2 in elements]... )
+            trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
+            return trans_ace
+
+         elseif length(transform) == 4
+            if transform[4] != 0.0
+               @error("currently the end-slope of the normalized agnesi transform must be zero.")
+            end
+            # WARN: looks fishy how we are using the cutoffs here.            
+            transforms = Dict([ (s1, s2) => normalized_agnesi_transform(r0[(s1, s2)], rcut; p=p, q=q)
+                              for s1 in elements, s2 in elements]... )
+            trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
+            return trans_ace
+
+         end
       end
 
    elseif transform isa ACE1.Transforms.DistanceTransform
