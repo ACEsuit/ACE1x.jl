@@ -356,7 +356,20 @@ export algebraic_smoothness_prior,
        exp_smoothness_prior
 
 
-function smoothness_prior(basis; p = 2, wL = 1.0)
+function smoothness_prior(basis, typ = :algebraic; kwargs...)
+   if typ == :algebraic
+      return algebraic_smoothness_prior(basis; kwargs...)
+   elseif typ == :gaussian
+      return gaussian_smoothness_prior(basis; kwargs...)
+   elseif typ == :exp
+      return exp_smoothness_prior(basis; kwargs...)
+   end
+   error("Unknown smoothness prior type: $typ")
+end
+
+
+
+function algebraic_smoothness_prior(basis; p = 4, wL = 1.0) 
    d = Float64[]
    for B in basis.BB
       if B isa ACE1.RPI.RPIBasis
@@ -367,11 +380,6 @@ function smoothness_prior(basis; p = 2, wL = 1.0)
    end
    return Diagonal(1 .+ d)
 end
-
-
-
-algebraic_smoothness_prior(basis; kwargs...) = 
-      smoothness_prior(basis; kwargs...)
 
 
 _get_nnll(basis::ACE1.RPI.RPIBasis) = 
