@@ -92,3 +92,28 @@ end
 
 smoothness_prior(model::ACE1Model; kwargs...) = 
       smoothness_prior(model.basis; kwargs...)
+
+
+
+### try
+function acemodel2(;  kwargs...)
+   Eref = get(kwargs, :Eref, nothing)
+   Vref = get(kwargs, :Vref, nothing)
+   
+   # construct the basis 
+   basis = ace_basis2(; kwargs...)
+
+
+   if Vref == nothing && Eref != nothing 
+      Vref = JuLIP.OneBody(Eref...)
+   end
+
+   # construct a model without parameters and without an evaluator 
+   model = ACE1Model(basis, nothing, Vref, nothing, Dict())
+
+   # set some random parameters -> this will also generate the evaluator 
+   params = randn(length(basis))
+   params = params ./ (1:length(basis)).^4
+   _set_params!(model, params)
+   return model 
+end

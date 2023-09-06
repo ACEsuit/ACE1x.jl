@@ -5,6 +5,7 @@ using JuLIP: AtomicNumber, rnn, z2i
 using ACE1.Transforms: agnesi_transform, multitransform
 using ACE1.PairPotentials: PolyPairBasis
 using ACE1.OrthPolys: transformed_jacobi, transformed_jacobi_env
+using ACE1
 
 export ace_basis, smoothness_prior
 
@@ -282,6 +283,28 @@ function _pair_basis(kwargs)
 end
 
 
+function remove_2b!(rpibasis, delete2b, maxdeg)
+
+   # decide whether to delete all 2b, or just the ones with 
+   # too high a degree (note they will remain in the AA basis 
+   # and only get deleted from the B basis)
+   for iz0 = 1:ACE1.numz(rpibasis)
+      CC = rpibasis.A2Bmaps[iz0]
+      for idx = 1:size(CC, 1)
+         iAA = findlast(CC[idx, :] .!= 0)
+         spec_iAA = ACE1.get_basis_spec(rpibasis.pibasis, iz0, iAA).oneps
+         if length(spec_iAA) == 1
+            delete_iAA = delete2b || (spec_iAA[1].n > maxdeg)
+            if delete_iAA
+               CC[idx, :] .= 0.0
+            end
+         end
+      end
+   end
+
+   return nothing 
+end
+
 
 function mb_ace_basis(kwargs)
    elements = kwargs[:elements]
@@ -310,7 +333,68 @@ function mb_ace_basis(kwargs)
                                maxdeg=maxdeg,
                                N = cor_order, )
       _rem = kwargs[:delete2b] ? 1 : 0
+      # # remove all zero-basis functions that we might have accidentally created
+      # dirtybasis = ACE1.RPI.remove_zeros(dirtybasis)
+      # # and finally cleanup the rest of the basis 
+      # dirtybasis = ACE1._cleanup(dirtybasis)
       rpibasis = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = _rem)
+      # # remove all zero-basis functions that we might have accidentally created
+      # rpibasis = ACE1.RPI.remove_zeros(rpibasis)
+      # # and finally cleanup the rest of the basis
+      # rpibasis = ACE1._cleanup(rpibasis; tol = 1e-12)
+   else
+      rpibasis = ACE1.ace_basis(species = AtomicNumber.(elements),
+                               rbasis=rbasis,
+                               D=Deg,
+                               maxdeg=maxdeg,
+                               N = cor_order, )
+      remove_2b!(rpibasis, kwargs[:delete2b], maxdeg)
+
+      # remove all zero-basis functions that we might have accidentally created. 
+      rpibasis = ACE1.RPI.remove_zeros(rpibasis)
+      # and finally cleanup the rest of the basis 
+      rpibasis = ACE1._cleanup(rpibasis)
+   end
+
+   return rpibasis
+end
+
+function mb_ace_basis2(kwargs)
+   elements = kwargs[:elements]
+   cor_order = _get_order(kwargs)
+   Deg, maxdeg, maxn = _get_degrees(kwargs)
+   rbasis = _radial_basis(kwargs)
+   pure2b = kwargs[:pure2b]
+
+   if pure2b && kwargs[:pure]
+      # error("Cannot use both `pure2b` and `pure` options.")
+      @info("Option `pure = true` overrides `pure2b=true`")
+      pure2b = false
+   end
+
+   if pure2b
+      rpibasis = Pure2b.pure2b_basis(species = AtomicNumber.(elements),
+                              Rn=rbasis,
+                              D=Deg,
+                              maxdeg=maxdeg,
+                              order=cor_order,
+                              delete2b = kwargs[:delete2b])
+   elseif kwargs[:pure]
+      dirtybasis = ACE1.ace_basis(species = AtomicNumber.(elements),
+                               rbasis=rbasis,
+                               D=Deg,
+                               maxdeg=maxdeg,
+                               N = cor_order, )
+      _rem = kwargs[:delete2b] ? 1 : 0
+      # remove all zero-basis functions that we might have accidentally created
+      dirtybasis = ACE1.RPI.remove_zeros(dirtybasis)
+      # and finally cleanup the rest of the basis 
+      dirtybasis = ACE1._cleanup(dirtybasis)
+      rpibasis = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = _rem)
+      # remove all zero-basis functions that we might have accidentally created
+      rpibasis = ACE1.RPI.remove_zeros(rpibasis)
+      # and finally cleanup the rest of the basis 
+      rpibasis = ACE1._cleanup(rpibasis; tol = 1e-12)
    else
       rpibasis = ACE1.ace_basis(species = AtomicNumber.(elements),
                                rbasis=rbasis,
@@ -329,6 +413,13 @@ function ace_basis(; kwargs...)
    return JuLIP.MLIPs.IPSuperBasis([pairB, rpiB]);
 end
 
+
+function ace_basis2(; kwargs...)
+   kwargs = _clean_args(kwargs)
+   rpiB = mb_ace_basis2(kwargs)
+   pairB = _pair_basis(kwargs)
+   return JuLIP.MLIPs.IPSuperBasis([pairB, rpiB]);
+end
 
 # ---------------------------------------------------------------
 #  Smoothness priors 

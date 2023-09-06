@@ -5,7 +5,7 @@ using ACE1x
 
 using ACE1x: getspeclenlist, spec2col, insertspect!
 
-using SparseArrays: sparse, spzeros, SparseVector
+using SparseArrays: sparse, spzeros, SparseVector, dropzeros
 using RepLieGroups.O3: ClebschGordan
 
 const NLMZ = ACE1.RPI.PSH1pBasisFcn
@@ -22,7 +22,7 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
 
    # get the original C_sym for each atom
    C_sym_list = deepcopy(basis.A2Bmaps)
-
+   C_sym_list = [dropzeros(C) for C in C_sym_list]
    # setting correpsonding basis to 0 if we want to remove some basis
    for C_sym in C_sym_list
        for idx = 1:size(C_sym, 1)
@@ -44,7 +44,7 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    end
    maxn = maximum(maxn_list)
    maxl = maximum(maxl_list)
-   Ydim = length(basis.pibasis.basis1p.SH)
+   Ydim = length(ACE1.SphericalHarmonics.SHBasis(maxl))
    # === get extended b1p, spec1p, Rn_coef and purification operator that map extended impure basis to pure basis
    # get extended polynomial basis
    Rn = basis.pibasis.basis1p.J
@@ -176,7 +176,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
    spec = deepcopy(spec_core)
    spec_len_list = getspeclenlist(old_spec)
 
-   # println("original number of basis: ", spec_len_list)
+   println("original number of basis: ", spec_len_list)
 
    # for each order
    for Remove_ν = 3:Remove
@@ -244,7 +244,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
 
 
    # from here no more extra pure basis should be inserted into the spec
-   # println("Number of basis needed to be purified: ", spec_len_list)
+   println("Number of basis needed to be purified: ", spec_len_list)
 
    # corresponding to 2 and 3 body basis
    for i = 1:sum(spec_len_list[1:2])
@@ -328,6 +328,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
       end
    end
 
+   println("Final total number of basis: ", getspeclenlist(spec_x_order))
    
    return order_C, spec_x_order, pure_spec
 end
