@@ -5,7 +5,7 @@ using ACE1x
 
 using ACE1x: getspeclenlist, spec2col, insertspect!
 
-using SparseArrays: sparse, spzeros, SparseVector
+using SparseArrays: sparse, spzeros, SparseVector, dropzeros
 using RepLieGroups.O3: ClebschGordan
 
 const NLMZ = ACE1.RPI.PSH1pBasisFcn
@@ -15,6 +15,10 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    corord = maximum(length.(get_nl(basis)))
    @assert corord >= 2
 
+   # clean zeros for sanity and prevent useless basis being purified
+   basis = ACE1.RPI.remove_zeros(basis)
+   basis = ACE1._cleanup(basis)
+
    pin, pcut = basis.pibasis.basis1p.J.J.pl, basis.pibasis.basis1p.J.J.pr
    ninc = (pin + pcut) * (corord - 1)
    zList = basis.pibasis.zlist.list
@@ -22,6 +26,9 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
 
    # get the original C_sym for each atom
    C_sym_list = deepcopy(basis.A2Bmaps)
+   # remove zeros that generated for some reason...
+   C_sym_list = ntuple(i -> dropzeros(C_sym_list[i]), length(C_sym_list))
+
 
    # setting correpsonding basis to 0 if we want to remove some basis
    for C_sym in C_sym_list
@@ -44,7 +51,9 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    end
    maxn = maximum(maxn_list)
    maxl = maximum(maxl_list)
-   Ydim = length(basis.pibasis.basis1p.SH)
+   Ydim = length(ACE1.SphericalHarmonics.SHBasis(maxl))
+
+
    # === get extended b1p, spec1p, Rn_coef and purification operator that map extended impure basis to pure basis
    # get extended polynomial basis
    Rn = basis.pibasis.basis1p.J
@@ -113,33 +122,7 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
       # newA2Bmap = P * C_pure
       push!(newA2Bmap_list, newA2Bmap)
    end
-
-
-   # TODO: remove this comment block after making sure everything works fine
-   # === 
-   # construct new b1p_x from spec_x_list to create a minimal amount of spec1p, this part should be independent of the transformation 
-   # since the transformation is only applied on the AA matrix
-
-   # try unsorted first, if needed sort later
-   # thin_spec1p_x = Vector{ACE1.RPI.PSH1pBasisFcn}()
-
-   # for each atom, we extract the 1p basis
-   # for _spec in spec_x_list
-   #    for bb in _spec 
-   #       for b in bb.oneps
-   #          new_b = NLMZ(b.n, b.l, b.m, 0)
-   #          push!(thin_spec1p_x, new_b)
-   #       end
-   #    end
-   # end
-   # sort!(thin_spec1p_x, lt = (x, y) -> (x.z < y.z) || (x.z == y.z && x.n < y.n) || (x.z == y.z && x.n == y.n && x.l < y.l) || (x.z == y.z && x.n == y.n && x.l == y.l && x.m < y.m))
-   # unique!(thin_spec1p_x)
-
-   # create new b1p_x basis
-   # new_b1p_x = BasicPSH1pBasis(Rn_x, basis.pibasis.basis1p.zlist, spec1p_x)
-   
-   # === end of comment block
-
+  
    # get pibasis from spec
    pibasis_x = ACE1.pibasis_from_specs(b1p_x, Tuple(spec_x_list))
 
@@ -175,59 +158,56 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
    old_spec = deepcopy(spec_core)
    spec = deepcopy(spec_core)
    spec_len_list = getspeclenlist(old_spec)
-
-   # println("original number of basis: ", spec_len_list)
-
-   # for each order
+  # for each order
    for Remove_ν = 3:Remove
 
       for Recursive_ν in reverse([i for i = 3:Remove_ν])
       # we first have to remove the current order
          i = sum(spec_len_list[1:Recursive_ν-1]) + 1
          while (i <= sum(spec_len_list[1:Recursive_ν]))
-            # adjusting coefficent for the term \matcal{A}_{k1...kN} * A_{N+1}
+            # adjusting coefficent for the term \matcal{A}_{k1...kN} * A_{k_{N+1}}
             # first we get the coefficient corresponding to purified basis of order ν - 1
-
             if spec2col(spec[i][1:end - 1], spec) == nothing
                insertspect!(spec, spec[i][1:end - 1])
                i += 1
                # update info
                spec_len_list = getspeclenlist(spec)
-               spec3b = spec[length.(spec) .== 2]
-               getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
-            end
-            
-            # adjusting coefficent for terms Σ^{ν -1}_{β = 1} P^{κ} \mathcal{A}
-            # update Cnn_all if that are not in dict
-            for j = 1:Recursive_ν - 1
-               if spec2col([spec[i][j], spec[i][Recursive_ν]], spec) == nothing
-                  insertspect!(spec, [spec[i][j], spec[i][Recursive_ν]])
-                  i += 1
-                  # update info
-                  spec_len_list = getspeclenlist(spec)
+               if length(spec[i][1:end - 1]) >= 2
                   spec3b = spec[length.(spec) .== 2]
                   getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
                end
             end
-
+            
+            # adjusting coefficent for terms Σ^{ν - 1}_{β = 1} P^{κ} \mathcal{A}
+            # update Cnn_all if they are not in dict, but we don't need to purify that since we only need the coefficients and its nnz
+            # to add basis in the next step
+            for j = 1:Recursive_ν - 1
+               if spec2col([spec[i][j], spec[i][Recursive_ν]], spec) == nothing
+                  spec3b = spec[length.(spec) .== 2]
+                  getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, vcat(spec3b, [[spec[i][j], spec[i][Recursive_ν]]]))
+               end
+            end
+            # now this is the actual pure basis that we need to expand 
             P_κ_list  = [Cnn_all[[spec[i][j], spec[i][Recursive_ν]]] for j = 1:Recursive_ν - 1]
             for (idx, P_κ) in enumerate(P_κ_list)
                for k = 1:length(P_κ.nzind) # for each kappa, P_κ.nzind[k] == κ in the sum
                   # first we get the coefficient corresponding to the \mathcal{A}
                   pureA_spec = [spec[i][r] for r = 1:Recursive_ν-1 if r != idx] # r!=idx since κ runs through the 'idx' the coordinate
                   push!(pureA_spec, P_κ.nzind[k]) # add κ into the sum
-                  if spec2col(sort(pureA_spec), spec) == nothing
+                  if spec2col(sort(pureA_spec), spec) === nothing
                      # add an extra basis to evalute, that also require purification
                      insertspect!(spec, sort(pureA_spec))
                      i += 1
                      # update info
                      spec_len_list = getspeclenlist(spec)
-                     spec3b = spec[length.(spec) .== 2]
-                     getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+                     if length(pureA_spec) == 2
+                        spec3b = spec[length.(spec) .== 2]
+                        getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+                     end
                   end
                end
             end
-            # update info
+            # update info, simply for sanity and this is not necessary
             spec_len_list = getspeclenlist(spec)
             spec3b = spec[length.(spec) .== 2]
             getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
@@ -312,23 +292,20 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
 
    # init a matrix C for storing coefficients in according to spec in order
    order_C = spzeros(length(spec_x_order), length(spec_x_order))
-   inv_spec_x = Dict([ key => idx for (idx, key) in enumerate(spec_x_order) ]...)
+   inv_spec_x = Dict{Vector{Int64}, Int64}([ key => idx for (idx, key) in enumerate(spec_x_order) ]...)
    # for each basis
    for i in eachindex(spec_x_order)
       # if they are basis that has to be purified
       if spec_x_order[i] in pure_spec
          # get the correpsonding row of the target spec in original matrix
          old_ip2pmap = C[spec2col(spec_x_order[i], spec), :]
-         @simd ivdep for j = 1:length(old_ip2pmap.nzind)
-            # order_C[i, spec2col(spec[old_ip2pmap.nzind[j]], spec_x_order)] = old_ip2pmap.nzval[j]
+         for j = 1:length(old_ip2pmap.nzind)
             order_C[i, inv_spec_x[spec[old_ip2pmap.nzind[j]]]] = old_ip2pmap.nzval[j]
          end
       else # if not, only set the diagonal element to be 1
-         order_C[i, i] = 1
+         order_C[i, i] = 1.0
       end
    end
-
-   
    return order_C, spec_x_order, pure_spec
 end
 
