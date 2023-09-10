@@ -93,6 +93,7 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    # now for each of the species, we get the transformation, and also the extended basis
    newA2Bmap_list = []
    spec_x_list = []
+   cg = ClebschGordan()
    for i in eachindex(zList)
       # get spec and spec_core respectively, they should be equivalent
       spec = ACE1.get_basis_spec(basis.pibasis, i)
@@ -100,8 +101,8 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
 
       spec3b_core = spec_core[length.(spec_core) .== 2]
       Cnn_all = Dict{Vector{Int64}, SparseVector{Float64, Int64}}()
-      getCnn_all_multi!(Cnn_all, Rn_coef, spec1p_x_core, spec3b_core)
-      C_pure, spec_x_core, pure_spec = generalImpure2PureMap3D_env_test_multi(Cnn_all, Rn_coef, spec_core, spec1p_x_core, corord)
+      updateCnn_all!(Cnn_all, Rn_coef, spec1p_x_core, spec3b_core, cg)
+      C_pure, spec_x_core, pure_spec = getPurifyOpCCS(Cnn_all, Rn_coef, spec_core, spec1p_x_core, corord; cg = cg)
       # get spec_x in terms of ACE1 spec
       spec_x = ACE1x.getACE1Spec_multi(spec_x_core, spec1p_x_core, species[i])
       # a spec_x_list, each elements inside a tuple correpsonding to a species
@@ -133,7 +134,7 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
    pure_rpibasis = ACE1.RPI.remove_zeros(pure_rpibasis)
 
    # and finally clean up
-   pure_rpibasis = ACE1._cleanup(pure_rpibasis)
+   pure_rpibasis = ACE1._cleanup(pure_rpibasis; tol = 1e-12)
 
    return pure_rpibasis
 end
@@ -153,12 +154,13 @@ Return: spec_x_order :: Vector{Vector{Int}}, extended specification in ACEcore s
 Return: pure_spec :: Vector{Vector{Int}}, pure basis that has to be evaluated
 
 """
-function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{Int}}, spec1p::Vector{Tuple{Int16, Int, Int}}, Remove::Integer)
+function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{Int}}, spec1p::Vector{Tuple{Int16, Int, Int}}, Remove::Integer; cg = ClebschGordan())
 
    old_spec = deepcopy(spec_core)
    spec = deepcopy(spec_core)
    spec_len_list = getspeclenlist(old_spec)
   # for each order
+   cg = ClebschGordan()
    for Remove_ν = 3:Remove
 
       for Recursive_ν in reverse([i for i = 3:Remove_ν])
@@ -174,7 +176,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
                spec_len_list = getspeclenlist(spec)
                if length(spec[i][1:end - 1]) >= 2
                   spec3b = spec[length.(spec) .== 2]
-                  getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+                  updateCnn_all!(Cnn_all, Pnn_all, spec1p, spec3b, cg)
                end
             end
             
@@ -184,7 +186,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
             for j = 1:Recursive_ν - 1
                if spec2col([spec[i][j], spec[i][Recursive_ν]], spec) == nothing
                   spec3b = spec[length.(spec) .== 2]
-                  getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, vcat(spec3b, [[spec[i][j], spec[i][Recursive_ν]]]))
+                  updateCnn_all!(Cnn_all, Pnn_all, spec1p, vcat(spec3b, [[spec[i][j], spec[i][Recursive_ν]]]), cg)
                end
             end
             # now this is the actual pure basis that we need to expand 
@@ -202,7 +204,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
                      spec_len_list = getspeclenlist(spec)
                      if length(pureA_spec) == 2
                         spec3b = spec[length.(spec) .== 2]
-                        getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+                        updateCnn_all!(Cnn_all, Pnn_all, spec1p, spec3b, cg)
                      end
                   end
                end
@@ -210,7 +212,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
             # update info, simply for sanity and this is not necessary
             spec_len_list = getspeclenlist(spec)
             spec3b = spec[length.(spec) .== 2]
-            getCnn_all_multi!(Cnn_all, Pnn_all, spec1p, spec3b)
+            updateCnn_all!(Cnn_all, Pnn_all, spec1p, spec3b, cg)
             i += 1
          end
       end
@@ -220,15 +222,13 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
    pure_spec = deepcopy(spec)
 
    S = length(spec)
-   C = spzeros(5 * S, 5 * S) # transformation matrix, init large enough for additional basis evaluation
-
-
+   hmap = Dict{Int, Vector{Tuple{Int, Float64}}}(i => [] for i = 1:S)
    # from here no more extra pure basis should be inserted into the spec
    # println("Number of basis needed to be purified: ", spec_len_list)
 
    # corresponding to 2 and 3 body basis
    for i = 1:sum(spec_len_list[1:2])
-      C[i, i] = 1.0
+      push!(hmap[i], (i, 1.0))
    end
 
    # Base case, adjust coefficient for 3 body (ν = 2)
@@ -239,7 +239,7 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
             # add an extra basis to evalute, but it does not require purification
             push!(spec, [pnn.nzind[k]])
          end
-         C[i, spec2col([pnn.nzind[k]], spec)] -= pnn.nzval[k]
+         push!(hmap[i], (spec2col([pnn.nzind[k]], spec), -pnn.nzval[k]))
       end
    end
    
@@ -250,17 +250,20 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
          for i = sum(spec_len_list[1:ν-1]) + 1:sum(spec_len_list[1:ν])
             # adjusting coefficent for the term \matcal{A}_{k1...kN} * A_{N+1}
             # first we get the coefficient corresponding to purified basis of order ν - 1
-            last_ip2pmap = C[spec2col(spec[i][1:end - 1], spec), :]
+            _target = spec2col(spec[i][1:end - 1], spec)
+            last_ip2pmap = hmap[_target]
             
-            for k = 1:length(last_ip2pmap.nzind) # for each of the coefficient in last_ip2pmap
+            for k = 1:length(last_ip2pmap) # for each of the coefficient in last_ip2pmap, might be repeated
                # first we get the corresponing specification correpsonding to (spec of last_ip2pmap[i], spec[end])
-               target_spec = [t for t in spec[last_ip2pmap.nzind[k]]]
+               # target_spec = [t for t in spec[last_ip2pmap[1][k]]]
+               target_spec = [t for t in spec[last_ip2pmap[k][1]]]
                push!(target_spec, spec[i][end])
                if !(sort(target_spec) in spec)
-                  # add an extra basis to evalute, but it does not require purification
+                  # add an extra basis to evalute, but it does not require purification, therefore we don't need this in Irow
                   push!(spec, sort(target_spec))
+                  # hmap[spec2col(sort(target_spec), spec)] = []
                end
-               C[i, spec2col(sort(target_spec), spec)] += last_ip2pmap.nzval[k]
+               push!(hmap[i], (spec2col(sort(target_spec), spec), last_ip2pmap[k][2]))
             end
 
             # adjusting coefficent for terms Σ^{ν -1}_{β = 1} P^{κ} \mathcal{A}
@@ -270,9 +273,10 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
                   # first we get the coefficient corresponding to the \mathcal{A}
                   pureA_spec = [spec[i][r] for r = 1:ν-1 if r != idx] # r!=idx since κ runs through the 'idx' the coordinate
                   push!(pureA_spec, P_κ.nzind[k]) # add κ into the sum
-                  last_ip2pmap = C[spec2col(sort(pureA_spec), spec), :]
-                  for m = 1:length(last_ip2pmap.nzind)
-                     C[i, last_ip2pmap.nzind[m]] -= P_κ.nzval[k] .* last_ip2pmap.nzval[m]
+                  _target = spec2col(sort(pureA_spec), spec)
+                  last_ip2pmap = hmap[_target]
+                  for m = 1:length(last_ip2pmap)
+                     push!(hmap[i], (last_ip2pmap[m][1], -P_κ.nzval[k] * last_ip2pmap[m][2]))
                   end
                end
             end
@@ -281,33 +285,39 @@ function generalImpure2PureMap3D_env_test_multi(Cnn_all::Dict, Pnn_all::Dict, sp
       end
    end
 
-   # assert that it does not go over the bound of initialized C
-   @assert 5 * length(old_spec) > length(spec)
-
-   # create an ordered spec
    spec_x_order = deepcopy(pure_spec)
    for i = length(pure_spec) + 1 : length(spec)
       insertspect!(spec_x_order, spec[i])
    end
 
-   # init a matrix C for storing coefficients in according to spec in order
-   order_C = spzeros(length(spec_x_order), length(spec_x_order))
-   inv_spec_x = Dict{Vector{Int64}, Int64}([ key => idx for (idx, key) in enumerate(spec_x_order) ]...)
-   # for each basis
+   inv_spec_x_ordered = Dict{Vector{Int64}, Int64}([ key => idx for (idx, key) in enumerate(spec_x_order) ]...)
+   inv_spec = Dict{Vector{Int64}, Int64}([ key => idx for (idx, key) in enumerate(spec) ]...)
+
+   newhmap = Dict{Int, Vector{Tuple{Int, Float64}}}()
+
    for i in eachindex(spec_x_order)
-      # if they are basis that has to be purified
       if spec_x_order[i] in pure_spec
-         # get the correpsonding row of the target spec in original matrix
-         old_ip2pmap = C[spec2col(spec_x_order[i], spec), :]
-         for j = 1:length(old_ip2pmap.nzind)
-            order_C[i, inv_spec_x[spec[old_ip2pmap.nzind[j]]]] = old_ip2pmap.nzval[j]
-         end
-      else # if not, only set the diagonal element to be 1
-         order_C[i, i] = 1.0
+         prev_row = inv_spec[spec_x_order[i]]
+         newhmap[i] = [ (inv_spec_x_ordered[spec[j]], val) for (j, val) in hmap[prev_row]]
+      else
+         newhmap[i] = [(i, 1.0)]
       end
    end
-   return order_C, spec_x_order, pure_spec
+
+   Irow, Jcol, vals = Int[], Int[], Float64[]
+
+   for i in keys(newhmap)
+      for j in newhmap[i]
+         push!.( (Irow, Jcol, vals), (i, j[1], j[2]) )
+      end
+   end
+
+   C = sparse(Irow, Jcol, vals, length(spec), length(spec))
+
+   return C, spec_x_order, pure_spec
 end
+
+
 
 
 """
@@ -319,9 +329,7 @@ param: spec1p :: Vector{Tuple{Int}}}, specification of 1 particle basis
 param: spec3b :: Vector{Tuple{Int}}}, specification of 3 body basis
 
 """
-function getCnn_all_multi!(Cnn_all::Dict, Pnn_all::Dict, spec1p, spec3b)
-   # Cnn_all = Dict{Vector{Int64}, SparseVector{Float64, Int64}}()
-   cg = ClebschGordan()
+function updateCnn_all!(Cnn_all::Dict, Pnn_all::Dict, spec1p, spec3b, cg)
    for nlm in spec3b
       if !(nlm in keys(Cnn_all))
          niceidx1, niceidx2 = spec1p[nlm[1]], spec1p[nlm[2]]
