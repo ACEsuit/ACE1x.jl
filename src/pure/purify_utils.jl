@@ -155,14 +155,14 @@ end
 Linear search, NN can be spec or spec1p
 """
 function spec2col(NNi, NN)
-   return LinearSearch(NNi, NN)
+   return LinearSearch(NNi, NN)::Int64
 end
 
 """
 Linear search, for getting index for CG coefficient expansion
 """
 function _getκylmIdx(spec1p, κ, idxy)
-   return LinearSearch((κ, idxy), spec1p)
+   return LinearSearch((κ, idxy), spec1p)::Int64
 end
 
 
@@ -172,7 +172,7 @@ function LinearSearch(NNi, NN)
          return k
       end
    end
-   return nothing
+   return -1
 end
 
 

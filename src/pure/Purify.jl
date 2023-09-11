@@ -110,9 +110,6 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
       
       # get the projection map
       inv_spec_x = Dict([ key => idx for (idx, key) in enumerate(spec_x) ]...)
-      # examples for using the inv_spec_x just for my own note...
-      # eg. inv_spec_x[spec_x[23]]
-      #     inv_spec_x[spec[20]]
 
       P = spzeros(length(spec), length(spec_x))
       for i in eachindex(spec)
@@ -159,22 +156,21 @@ function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{I
    old_spec = deepcopy(spec_core)
    spec = deepcopy(spec_core)
    spec_len_list = getspeclenlist(old_spec)
-  # for each order
-   cg = ClebschGordan()
+   # for each order
    for Remove_ν = 3:Remove
-
-      for Recursive_ν in reverse([i for i = 3:Remove_ν])
-      # we first have to remove the current order
+      for Recursive_ν in reverse(3:Remove_ν)
+        # we first have to remove the current order
          i = sum(spec_len_list[1:Recursive_ν-1]) + 1
          while (i <= sum(spec_len_list[1:Recursive_ν]))
             # adjusting coefficent for the term \matcal{A}_{k1...kN} * A_{k_{N+1}}
             # first we get the coefficient corresponding to purified basis of order ν - 1
-            if spec2col(spec[i][1:end - 1], spec) == nothing
-               insertspect!(spec, spec[i][1:end - 1])
+            _target = spec[i][1:end - 1]
+            if spec2col(_target, spec) == -1
+               insertspect!(spec, _target)
                i += 1
                # update info
-               spec_len_list = getspeclenlist(spec)
-               if length(spec[i][1:end - 1]) >= 2
+               spec_len_list[length(_target)] += 1
+               if length(_target) >= 2
                   spec3b = spec[length.(spec) .== 2]
                   updateCnn_all!(Cnn_all, Pnn_all, spec1p, spec3b, cg)
                end
@@ -184,9 +180,10 @@ function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{I
             # update Cnn_all if they are not in dict, but we don't need to purify that since we only need the coefficients and its nnz
             # to add basis in the next step
             for j = 1:Recursive_ν - 1
-               if spec2col([spec[i][j], spec[i][Recursive_ν]], spec) == nothing
+               _target = Int64[spec[i][j], spec[i][Recursive_ν]]
+               if spec2col(_target, spec) == -1
                   spec3b = spec[length.(spec) .== 2]
-                  updateCnn_all!(Cnn_all, Pnn_all, spec1p, vcat(spec3b, [[spec[i][j], spec[i][Recursive_ν]]]), cg)
+                  updateCnn_all!(Cnn_all, Pnn_all, spec1p, vcat(spec3b, [_target]), cg)
                end
             end
             # now this is the actual pure basis that we need to expand 
@@ -194,14 +191,15 @@ function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{I
             for (idx, P_κ) in enumerate(P_κ_list)
                for k = 1:length(P_κ.nzind) # for each kappa, P_κ.nzind[k] == κ in the sum
                   # first we get the coefficient corresponding to the \mathcal{A}
-                  pureA_spec = [spec[i][r] for r = 1:Recursive_ν-1 if r != idx] # r!=idx since κ runs through the 'idx' the coordinate
+                  pureA_spec = Int64[spec[i][r] for r = 1:Recursive_ν-1 if r != idx] # r!=idx since κ runs through the 'idx' the coordinate
                   push!(pureA_spec, P_κ.nzind[k]) # add κ into the sum
-                  if spec2col(sort(pureA_spec), spec) === nothing
+                  sort!(pureA_spec)
+                  if spec2col(pureA_spec, spec) == -1
                      # add an extra basis to evalute, that also require purification
-                     insertspect!(spec, sort(pureA_spec))
+                     insertspect!(spec, pureA_spec)
                      i += 1
                      # update info
-                     spec_len_list = getspeclenlist(spec)
+                     spec_len_list[length(pureA_spec)] += 1
                      if length(pureA_spec) == 2
                         spec3b = spec[length.(spec) .== 2]
                         updateCnn_all!(Cnn_all, Pnn_all, spec1p, spec3b, cg)
@@ -253,17 +251,17 @@ function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{I
             _target = spec2col(spec[i][1:end - 1], spec)
             last_ip2pmap = hmap[_target]
             
-            for k = 1:length(last_ip2pmap) # for each of the coefficient in last_ip2pmap, might be repeated
+            for k in eachindex(last_ip2pmap) # for each of the coefficient in last_ip2pmap, might be repeated
                # first we get the corresponing specification correpsonding to (spec of last_ip2pmap[i], spec[end])
                # target_spec = [t for t in spec[last_ip2pmap[1][k]]]
                target_spec = [t for t in spec[last_ip2pmap[k][1]]]
                push!(target_spec, spec[i][end])
-               if !(sort(target_spec) in spec)
-                  # add an extra basis to evalute, but it does not require purification, therefore we don't need this in Irow
-                  push!(spec, sort(target_spec))
-                  # hmap[spec2col(sort(target_spec), spec)] = []
+               sort!(target_spec)
+               if !(target_spec in spec)
+                  # add an extra basis to evalute, but it does not require purification
+                  push!(spec, target_spec)
                end
-               push!(hmap[i], (spec2col(sort(target_spec), spec), last_ip2pmap[k][2]))
+               push!(hmap[i], (spec2col(target_spec, spec), last_ip2pmap[k][2]))
             end
 
             # adjusting coefficent for terms Σ^{ν -1}_{β = 1} P^{κ} \mathcal{A}
@@ -273,9 +271,10 @@ function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{I
                   # first we get the coefficient corresponding to the \mathcal{A}
                   pureA_spec = [spec[i][r] for r = 1:ν-1 if r != idx] # r!=idx since κ runs through the 'idx' the coordinate
                   push!(pureA_spec, P_κ.nzind[k]) # add κ into the sum
-                  _target = spec2col(sort(pureA_spec), spec)
+                  sort!(pureA_spec)
+                  _target = spec2col(pureA_spec, spec)
                   last_ip2pmap = hmap[_target]
-                  for m = 1:length(last_ip2pmap)
+                  for m in eachindex(last_ip2pmap)
                      push!(hmap[i], (last_ip2pmap[m][1], -P_κ.nzval[k] * last_ip2pmap[m][2]))
                   end
                end
@@ -305,15 +304,16 @@ function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{I
    end
 
    Irow, Jcol, vals = Int[], Int[], Float64[]
-
    for i in keys(newhmap)
       for j in newhmap[i]
-         push!.( (Irow, Jcol, vals), (i, j[1], j[2]) )
+         # push!.( (Irow, Jcol, vals), (i, j[1], j[2]) )
+         push!(Irow, i)
+         push!(Jcol, j[1])
+         push!(vals, j[2])
       end
    end
-
-   C = sparse(Irow, Jcol, vals, length(spec), length(spec))
-
+   Nk = length(spec)
+   C = sparse(Irow, Jcol, vals, Nk, Nk)
    return C, spec_x_order, pure_spec
 end
 
