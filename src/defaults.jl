@@ -177,7 +177,11 @@ function _transform(kwargs; transform = kwargs[:transform])
          q = transform[3]
          r0 = _get_all_r0(kwargs)
          rcut = _get_all_rcut(kwargs)
-         cutoffs = Dict([ (s1, s2) => (0.0, rcut[(s1, s2)]) for s1 in elements, s2 in elements]...)
+         if rcut isa Number
+            cutoffs = nothing
+         else
+            cutoffs = Dict([ (s1, s2) => (0.0, rcut[(s1, s2)]) for s1 in elements, s2 in elements]...)
+         end
          rcut = maximum(values(rcut))  # multitransform wants a single cutoff.
          
          if ( (length(transform) == 3) || 
