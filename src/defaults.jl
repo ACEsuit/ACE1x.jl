@@ -177,13 +177,14 @@ function _transform(kwargs; transform = kwargs[:transform])
          q = transform[3]
          r0 = _get_all_r0(kwargs)
          rcut = _get_all_rcut(kwargs)
+         cutoffs = Dict([ (s1, s2) => (0.0, rcut[(s1, s2)]) for s1 in elements, s2 in elements]...)
          rcut = maximum(values(rcut))  # multitransform wants a single cutoff.
-
+         
          if ( (length(transform) == 3) || 
               (length(transform) == 4 && transform[end] == :free) )
             transforms = Dict([ (s1, s2) => agnesi_transform(r0[(s1, s2)], p, q)
                               for s1 in elements, s2 in elements]... )
-            trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut)
+            trans_ace = multitransform(transforms; rin = 0.0, rcut = rcut, cutoffs=cutoffs)
             return trans_ace
 
          elseif length(transform) == 4
@@ -250,6 +251,8 @@ end
 function _pair_basis(kwargs)
    rbasis = kwargs[:pair_basis]
    elements = kwargs[:elements]
+   #elements has to be sorted becuase PolyPairBasis (see end of function) assumes sorted.
+   elements = [chemical_symbol(z) for z in JuLIP.Potentials.ZList(elements, static=true).list]
 
    if rbasis isa ACE1.ScalarBasis
       return rbasis
