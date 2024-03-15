@@ -58,7 +58,9 @@ const _kw_defaults = Dict(:elements => nothing,
                           :pair_basis => :legendre,
                           :pair_envelope => (:r, 2),
                           #
-                          :Eref => missing
+                          :Eref => missing,
+                          #temporary variable to specify whether using the variable cutoffs or not
+                          :variable_cutoffs => false,
                           )
 
 const _kw_aliases = Dict( :N => :order,
@@ -177,7 +179,7 @@ function _transform(kwargs; transform = kwargs[:transform])
          q = transform[3]
          r0 = _get_all_r0(kwargs)
          rcut = _get_all_rcut(kwargs)
-         if rcut isa Number
+         if rcut isa Number || ! kwargs[:variable_cutoffs]
             cutoffs = nothing
          else
             cutoffs = Dict([ (s1, s2) => (0.0, rcut[(s1, s2)]) for s1 in elements, s2 in elements]...)
@@ -256,7 +258,9 @@ function _pair_basis(kwargs)
    rbasis = kwargs[:pair_basis]
    elements = kwargs[:elements]
    #elements has to be sorted becuase PolyPairBasis (see end of function) assumes sorted.
-   elements = [chemical_symbol(z) for z in JuLIP.Potentials.ZList(elements, static=true).list]
+   if kwargs[:variable_cutoffs]
+      elements = [chemical_symbol(z) for z in JuLIP.Potentials.ZList(elements, static=true).list]
+   end
 
    if rbasis isa ACE1.ScalarBasis
       return rbasis
