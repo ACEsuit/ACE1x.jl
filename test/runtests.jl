@@ -8,4 +8,5 @@ using Test
     @testset "Purify-single" begin include("test_purify.jl"); end
     @testset "Purify-multi" begin include("test_purify_multi.jl"); end
     @testset "acemodel" begin include("test_acemodel.jl"); end
+    @testset "Weird Bugs" begin include("test_bugs.jl"); end
 end
