@@ -141,8 +141,12 @@ function _get_r0(kwargs, z1, z2)
    error("Unable to determine r0($z1, $z2) from the arguments provided.")
 end
 
+function _get_elements(kwargs) 
+   return [ kwargs[:elements]... ]
+end
+
 function _get_all_r0(kwargs)
-   elements = kwargs[:elements]
+   elements = _get_elements(kwargs) 
    r0 = Dict( [ (s1, s2) => _get_r0(kwargs, s1, s2)
                    for s1 in elements, s2 in elements]... )
 end
@@ -164,14 +168,14 @@ function _get_all_rcut(kwargs; _rcut = kwargs[:rcut])
    if _rcut isa Number
       return _rcut
    end
-   elements = kwargs[:elements]
+   elements = _get_elements(kwargs) 
    rcut = Dict( [ (s1, s2) => _get_rcut(kwargs, s1, s2; _rcut = _rcut)
                    for s1 in elements, s2 in elements]... )
    return rcut
 end
 
 function _transform(kwargs; transform = kwargs[:transform])
-   elements = kwargs[:elements]
+   elements = _get_elements(kwargs) 
 
    if transform isa Tuple
       if transform[1] == :agnesi
@@ -256,7 +260,7 @@ end
 
 function _pair_basis(kwargs)
    rbasis = kwargs[:pair_basis]
-   elements = kwargs[:elements]
+   elements = _get_elements(kwargs) 
    #elements has to be sorted becuase PolyPairBasis (see end of function) assumes sorted.
    if kwargs[:variable_cutoffs]
       elements = [chemical_symbol(z) for z in JuLIP.Potentials.ZList(elements, static=true).list]
@@ -313,7 +317,7 @@ end
 
 
 function mb_ace_basis(kwargs)
-   elements = kwargs[:elements]
+   elements = _get_elements(kwargs) 
    cor_order = _get_order(kwargs)
    Deg, maxdeg, maxn = _get_degrees(kwargs)
    rbasis = _radial_basis(kwargs)
