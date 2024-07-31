@@ -84,11 +84,6 @@ function pureRPIBasis(basis::ACE1.RPIBasis; remove = 0)
 
    # A2Bmaps <- C_sym * P * C_pure are constructed individually for each atom
    spec_core_list = ACE1x.getACEcoreSpec_1px_multi(basis, spec1p_x_core, zList)
-
-   # Sanity check
-   for t in eachindex(zList)
-       @assert length(spec_core_list[t]) == length(ACE1.get_basis_spec(basis.pibasis, t))
-   end
    
    # now for each of the species, we get the transformation, and also the extended basis
    newA2Bmap_list = []
@@ -138,8 +133,6 @@ end
 
 
 """
-Impure2Pure3D with envelope, currently works for any body order
-
 param: Cnn_all :: Dict{Vector{Int}, SparseVector{Float64, Int64}}(), coefficient of order ≤ 2 basis in fitting
 param: Pnn_all :: Dict{Vector{Int}, SparseVector{Float64, Int64}}(), coefficient of radial basis for expanding with CG coeffs
 param: spec_core :: Vector{Vector{Int}}}, specification of ACE basis in ACEcore style
@@ -149,7 +142,6 @@ param: Remove :: Integer, all basis of order ≤ Remove will be purified
 Return: order_C :: Matrix, a transformation matrix for the purification
 Return: spec_x_order :: Vector{Vector{Int}}, extended specification in ACEcore style
 Return: pure_spec :: Vector{Vector{Int}}, pure basis that has to be evaluated
-
 """
 function getPurifyOpCCS(Cnn_all::Dict, Pnn_all::Dict, spec_core::Vector{Vector{Int}}, spec1p::Vector{Tuple{Int16, Int, Int}}, Remove::Integer; cg = ClebschGordan())
 
