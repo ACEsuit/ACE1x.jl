@@ -343,6 +343,11 @@ function mb_ace_basis(kwargs)
                                maxdeg=maxdeg,
                                N = cor_order, )
       _rem = kwargs[:delete2b] ? 1 : 0
+      # remove all zero-basis functions that we might have accidentally created so that we purify less extra basis
+      dirtybasis = ACE1.RPI.remove_zeros(dirtybasis)
+      # and finally cleanup the rest of the basis 
+      dirtybasis = ACE1._cleanup(dirtybasis)
+      # finally purify
       rpibasis = ACE1x.Purify.pureRPIBasis(dirtybasis; remove = _rem)
    else
       rpibasis = ACE1.ace_basis(species = AtomicNumber.(elements),
